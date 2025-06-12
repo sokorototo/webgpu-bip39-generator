@@ -1,0 +1,7 @@
+[package]
+name = "webgpu-bip39-validator"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+argh = "0.1.13"
