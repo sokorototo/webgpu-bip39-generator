@@ -1,16 +1,13 @@
 struct SHA256_CTX {
-	data : array<u32, 64>,
-	datalen : u32,
-	bitlen : array<u32, 2>,
-	state : array<u32, 8>,
-	info : u32,
+	data: array<u32, 64>,
+	datalen: u32,
+	bitlen: array<u32, 2>,
+	state: array<u32, 8>,
+	info: u32,
 };
 
-@group(0) @binding(0) var<storage, read> input : array<u32>;
-@group(0) @binding(1) var<storage, read> inputSize : array<u32>;
-@group(0) @binding(2) var<storage, read_write> result : array<u32>;
-
 const SHA256_BLOCK_SIZE = 32;
+const SHA256_KIBBLE_SIZE = 32;
 
 const k = array<u32, 64> (
 	0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
@@ -23,31 +20,30 @@ const k = array<u32, 64> (
 	0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2
 );
 
-fn ROTLEFT(a : u32, b : u32) -> u32{return (((a) << (b)) | ((a) >> (32-(b))));}
-fn ROTRIGHT(a : u32, b : u32) -> u32{return (((a) >> (b)) | ((a) << (32-(b))));}
+fn ROTLEFT(a: u32, b: u32) -> u32{ return (((a) << (b)) | ((a) >> (32-(b)))); }
+fn ROTRIGHT(a: u32, b: u32) -> u32{ return (((a) >> (b)) | ((a) << (32-(b)))); }
 
-fn CH(x : u32, y : u32, z : u32) -> u32{return (((x) & (y)) ^ (~(x) & (z)));}
-fn MAJ(x : u32, y : u32, z : u32) -> u32{return (((x) & (y)) ^ ((x) & (z)) ^ ((y) & (z)));}
-fn EP0(x : u32) -> u32{return (ROTRIGHT(x,2) ^ ROTRIGHT(x,13) ^ ROTRIGHT(x,22));}
-fn EP1(x : u32) -> u32{return (ROTRIGHT(x,6) ^ ROTRIGHT(x,11) ^ ROTRIGHT(x,25));}
-fn SIG0(x : u32) -> u32{return (ROTRIGHT(x,7) ^ ROTRIGHT(x,18) ^ ((x) >> 3));}
-fn SIG1(x : u32) -> u32{return (ROTRIGHT(x,17) ^ ROTRIGHT(x,19) ^ ((x) >> 10));}
+fn CH(x: u32, y: u32, z: u32) -> u32 { return (((x) & (y)) ^ (~(x) & (z))); }
+fn MAJ(x: u32, y: u32, z: u32) -> u32 { return (((x) & (y)) ^ ((x) & (z)) ^ ((y) & (z))); }
+fn EP0(x: u32) -> u32 { return (ROTRIGHT(x,2) ^ ROTRIGHT(x,13) ^ ROTRIGHT(x,22)); }
+fn EP1(x: u32) -> u32 { return (ROTRIGHT(x,6) ^ ROTRIGHT(x,11) ^ ROTRIGHT(x,25)); }
+fn SIG0(x: u32) -> u32 { return (ROTRIGHT(x,7) ^ ROTRIGHT(x,18) ^ ((x) >> 3)); }
+fn SIG1(x: u32) -> u32 { return (ROTRIGHT(x,17) ^ ROTRIGHT(x,19) ^ ((x) >> 10)); }
 
-fn sha256_transform(ctx : ptr<function, SHA256_CTX>)
-{
-	var a : u32;
-	var b : u32;
-	var c : u32;
-	var d : u32;
-	var e : u32;
-	var f : u32;
-	var g : u32;
-	var h : u32;
-	var i : u32 = 0;
-	var j : u32 = 0;
-	var t1 : u32;
-	var t2 : u32;
-	var m : array<u32, 64> ;
+fn short256_transform(ctx: ptr<function, SHA256_CTX>) {
+	var a: u32;
+	var b: u32;
+	var c: u32;
+	var d: u32;
+	var e: u32;
+	var f: u32;
+	var g: u32;
+	var h: u32;
+	var i: u32 = 0;
+	var j: u32 = 0;
+	var t1: u32;
+	var t2: u32;
+	var m: array<u32, 64> ;
 
 
 	while(i < 16) {
@@ -96,14 +92,13 @@ fn sha256_transform(ctx : ptr<function, SHA256_CTX>)
 }
 
 
-fn sha256_update(ctx : ptr<function, SHA256_CTX>, len : u32)
-{
-	for (var i :u32 = 0; i < len; i++) {
+fn short256_update(ctx: ptr<function, SHA256_CTX>, input: ptr<function, array<u32, SHA256_KIBBLE_SIZE>>) {
+	for (var i: u32 = 0; i < SHA256_KIBBLE_SIZE; i++) {
 		(*ctx).data[(*ctx).datalen] = input[i];
 		(*ctx).datalen++;
 
 		if ((*ctx).datalen == 64) {
-			sha256_transform(ctx);
+			short256_transform(ctx);
 
 			if ((*ctx).bitlen[0] > 0xffffffff - (512)){
 				(*ctx).bitlen[1]++;
@@ -116,9 +111,9 @@ fn sha256_update(ctx : ptr<function, SHA256_CTX>, len : u32)
 	}
 }
 
-fn sha256_final(ctx : ptr<function, SHA256_CTX>, hash:  ptr<function, array<u32, SHA256_BLOCK_SIZE>>  )
-{
-	var i : u32 = (*ctx).datalen;
+fn short256_final(ctx: ptr<function, SHA256_CTX>) -> u32 {
+	var i: u32 = (*ctx).datalen;
+	var hash: u32;
 
 	if ((*ctx).datalen < 56) {
 		(*ctx).data[i] = 0x80;
@@ -136,7 +131,7 @@ fn sha256_final(ctx : ptr<function, SHA256_CTX>, hash:  ptr<function, array<u32,
 			i++;
 		}
 
-		sha256_transform(ctx);
+		short256_transform(ctx);
 		for (var i = 0; i < 56 ; i++) {
 			(*ctx).data[i] = 0;
 		}
@@ -157,7 +152,7 @@ fn sha256_final(ctx : ptr<function, SHA256_CTX>, hash:  ptr<function, array<u32,
 	(*ctx).data[57] = (*ctx).bitlen[1] >> 16;
 	(*ctx).data[56] = (*ctx).bitlen[1] >> 24;
 
-	sha256_transform(ctx);
+	short256_transform(ctx);
 
 	for (i = 0; i < 4; i++) {
 		(*hash)[i] = ((*ctx).state[0] >> (24 - i * 8)) & 0x000000ff;
@@ -171,12 +166,10 @@ fn sha256_final(ctx : ptr<function, SHA256_CTX>, hash:  ptr<function, array<u32,
 	}
 }
 
-@compute @workgroup_size(1, 1)
-fn main(@builtin(global_invocation_id) global_id : vec3<u32>) {
-	var ctx : SHA256_CTX;
-	var buf : array<u32, SHA256_BLOCK_SIZE>;
+fn short256(input: ptr<function, array<u32, SHA256_KIBBLE_SIZE>>) -> array<u32, SHA256_BLOCK_SIZE> {
+	var ctx: SHA256_CTX;
 
-	// CTX INIT
+	// initialize context
 	ctx.datalen = 0;
 	ctx.bitlen[0] = 0;
 	ctx.bitlen[1] = 0;
@@ -189,10 +182,6 @@ fn main(@builtin(global_invocation_id) global_id : vec3<u32>) {
 	ctx.state[6] = 0x1f83d9ab;
 	ctx.state[7] = 0x5be0cd19;
 
-	sha256_update(&ctx, inputSize[0]);
-	sha256_final(&ctx, &buf);
-
-	for (var i=0; i < 32; i++) {
-		result[i] = buf[i];
-	}
+	short256_update(&ctx, input);
+	return short256_final(&ctx);
 }
