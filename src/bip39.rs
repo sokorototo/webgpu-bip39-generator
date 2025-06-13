@@ -4,6 +4,7 @@ pub(crate) fn get_word_list() -> BTreeSet<&'static str> {
 	BIP39_ENGLISH.into_iter().collect()
 }
 
+/// 2048 == 2 ^ 11. Meaning there's one word for every combination of 11 bits
 pub(crate) static BIP39_ENGLISH: [&'static str; 2048] = [
 	"abandon", "ability", "able", "about", "above", "absent", "absorb", "abstract", "absurd", "abuse", "access", "accident", "account", "accuse", "achieve", "acid", "acoustic", "acquire", "across", "act",
 	"action", "actor", "actress", "actual", "adapt", "add", "addict", "address", "adjust", "admit", "adult", "advance", "advice", "aerobic", "affair", "afford", "afraid", "again", "age", "agent", "agree",
