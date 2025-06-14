@@ -1,7 +1,11 @@
 use std::{collections::BTreeSet, io::BufRead};
 
 pub(crate) mod bip39;
+pub(crate) mod device;
 pub(crate) mod solver;
+
+#[cfg(test)]
+pub(crate) mod tests;
 
 #[derive(Debug, argh::FromArgs)]
 /// Generates the remaining words in a BTC seed phrase by brute-force. Uses the WebGPU API
@@ -39,30 +43,8 @@ fn main() {
 		panic!("Invalid Stencil: Contains Unknown Word {}", unknown)
 	};
 
-	// configure wgpu
-	let instance_desc = wgpu::InstanceDescriptor {
-		backends: wgpu::Instance::enabled_backend_features(),
-		..Default::default()
-	};
-
-	let adapter_options = wgpu::RequestAdapterOptions {
-		power_preference: wgpu::PowerPreference::HighPerformance,
-		..Default::default()
-	};
-
-	// initialize wgpu, and acquire adapter
-	let instance = wgpu::Instance::new(&instance_desc);
-	let adapter = pollster::block_on(instance.request_adapter(&adapter_options)).unwrap();
-
-	// acquire device and queue
-	let device_options = wgpu::DeviceDescriptor {
-		label: Some("mnemonics-extractor"),
-		required_features: adapter.features(),
-		required_limits: adapter.limits(),
-		..Default::default()
-	};
-
-	let (device, queue) = pollster::block_on(adapter.request_device(&device_options)).unwrap();
+	// get device and device
+	let (device, queue) = device::init();
 
 	// extract mnemonic seeds
 	let then = std::time::Instant::now();
