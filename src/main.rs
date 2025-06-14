@@ -11,17 +11,19 @@ pub(crate) mod tests;
 /// Generates the remaining words in a BTC seed phrase by brute-force. Uses the WebGPU API
 pub(crate) struct Config {
 	/// for running parallel instances on multiple machines, describes how to divide the entropy space for effective parallelization
-	#[argh(option, short = 'p', default = "1")]
-	partitions: usize,
-	/// if the entropy space is divided, what partition do we assign ourselves
-	#[argh(option, short = 'i', default = "0")]
-	partition_idx: usize,
+	#[argh(option, short = 'p', default = "(1,1)", from_str_fn(parse_partition))]
+	partition: (usize, usize),
 	/// file containing list of known addresses to verify against
 	#[argh(option, short = 'a', default = "BTreeSet::new()", from_str_fn(read_file))]
 	addresses: BTreeSet<String>,
 	/// string describing known and unknown words in the mnemonic sentence. Must be 12 or 13 words long
 	#[argh(positional, greedy)]
 	stencil: Vec<String>,
+}
+
+pub(crate) fn parse_partition(path: &str) -> Result<(usize, usize), String> {
+	let mut parts = path.split('/').take(2).map(|s| s.parse().unwrap());
+	Ok((parts.next().unwrap(), parts.next().unwrap()))
 }
 
 pub(crate) fn read_file(path: &str) -> Result<BTreeSet<String>, String> {

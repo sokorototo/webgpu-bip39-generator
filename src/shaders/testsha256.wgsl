@@ -7,7 +7,7 @@ const INPUTS = 16;
 @compute @workgroup_size(INPUTS)
 fn main(@builtin(global_invocation_id) id: vec3<u32>) {
     var kibble: array<u32, KIBBLE_SIZE> = kibbles[id.x];
-	 var hash: array<u32, SHA256_BLOCK_SIZE> = short256(kibble);
+	 var hash: u32 = short256(kibble);
 
-	 expected[id.x] = hash[0];
+	 expected[id.x] = hash;
 }
