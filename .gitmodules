@@ -1,0 +1,4 @@
+[submodule "rust-gpu"]
+	path = rust-gpu
+	url = https://github.com/Rust-GPU/rust-gpu
+	shallow = true
