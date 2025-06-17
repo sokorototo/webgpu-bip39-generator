@@ -1,4 +1,4 @@
-pub(crate) fn init() -> (wgpu::Device, wgpu::Queue) {
+pub(crate) async fn init() -> (wgpu::Device, wgpu::Queue) {
 	// configure wgpu
 	let instance_desc = wgpu::InstanceDescriptor {
 		backends: wgpu::Instance::enabled_backend_features(),
@@ -12,7 +12,7 @@ pub(crate) fn init() -> (wgpu::Device, wgpu::Queue) {
 
 	// initialize wgpu, and acquire adapter
 	let instance = wgpu::Instance::new(&instance_desc);
-	let adapter = pollster::block_on(instance.request_adapter(&adapter_options)).unwrap();
+	let adapter = instance.request_adapter(&adapter_options).await.unwrap();
 
 	// acquire device and queue
 	let device_options = wgpu::DeviceDescriptor {

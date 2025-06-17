@@ -32,7 +32,8 @@ pub(crate) fn read_file(path: &str) -> Result<BTreeSet<String>, String> {
 	Ok(reader.lines().map(|line| line.unwrap()).collect())
 }
 
-fn main() {
+#[pollster::main]
+async fn main() {
 	let config: Config = argh::from_env();
 	let wordlist = bip39::get_word_list();
 
@@ -45,8 +46,10 @@ fn main() {
 		panic!("Invalid Stencil: Contains Unknown Word {}", unknown)
 	};
 
+	assert!(config.stencil.last().map(|s| s == "umbrella").unwrap_or(false), "Last Word Must Be Umbrella");
+
 	// get device and device
-	let (device, queue) = device::init();
+	let (device, queue) = device::init().await;
 
 	// extract mnemonic seeds
 	let then = std::time::Instant::now();

@@ -156,6 +156,7 @@ fn short256_final(ctx: ptr<function, SHA256_CTX>) -> u32 {
 
 // shortened sha256. Only returns the first byte of a normal sha256 digest
 // optimized for bitcoin's mnemonic seed checksums
+// takes 32 bits as input
 fn short256(input: array<u32, KIBBLE_SIZE>) -> u32 {
     var ctx: SHA256_CTX;
 
