@@ -7,7 +7,10 @@ struct SHA256_CTX {
 };
 
 const SHA256_BLOCK_SIZE = 32;
-const KIBBLE_SIZE = 4;
+// we consume 4 words: 32 bit integers
+const KIBBLE_COUNT = 4;
+// we hash 16 bytes at one go
+const BYTES_COUNT = 16;
 
 const k = array<u32, 64>(
     0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
@@ -29,6 +32,18 @@ fn EP0(x: u32) -> u32 { return (ROTRIGHT(x, 2) ^ ROTRIGHT(x, 13) ^ ROTRIGHT(x, 2
 fn EP1(x: u32) -> u32 { return (ROTRIGHT(x, 6) ^ ROTRIGHT(x, 11) ^ ROTRIGHT(x, 25)); }
 fn SIG0(x: u32) -> u32 { return (ROTRIGHT(x, 7) ^ ROTRIGHT(x, 18) ^ ((x) >> 3)); }
 fn SIG1(x: u32) -> u32 { return (ROTRIGHT(x, 17) ^ ROTRIGHT(x, 19) ^ ((x) >> 10)); }
+
+// Maps a dense u32 -> [u8; 4] -> [u32; 4]
+fn extract_bytes(input: u32) -> array<u32, 4> {
+    var bytes: array<u32, 4>;
+
+    bytes[0] = (input >> 0u) & 0xFFu;
+    bytes[1] = (input >> 8u) & 0xFFu;
+    bytes[2] = (input >> 16u) & 0xFFu;
+    bytes[3] = (input >> 24u) & 0xFFu;
+
+    return bytes;
+}
 
 fn short256_transform(ctx: ptr<function, SHA256_CTX>) {
     var a: u32;
@@ -91,8 +106,8 @@ fn short256_transform(ctx: ptr<function, SHA256_CTX>) {
     (*ctx).state[7] += h;
 }
 
-fn short256_update(ctx: ptr<function, SHA256_CTX>, input: array<u32, KIBBLE_SIZE>) {
-    for (var i: u32 = 0; i < KIBBLE_SIZE; i++) {
+fn short256_update(ctx: ptr<function, SHA256_CTX>, input: array<u32, BYTES_COUNT>) {
+    for (var i: u32 = 0; i < BYTES_COUNT; i++) {
         (*ctx).data[(*ctx).datalen] = input[i];
         (*ctx).datalen++;
 
@@ -110,7 +125,8 @@ fn short256_update(ctx: ptr<function, SHA256_CTX>, input: array<u32, KIBBLE_SIZE
     }
 }
 
-fn short256_final(ctx: ptr<function, SHA256_CTX>) -> u32 {
+fn short256_final(ctx: ptr<function, SHA256_CTX>) -> array<u32, 4> {
+    var hash: array<u32, 4>;
     var i: u32 = (*ctx).datalen;
 
     if (*ctx).datalen < 56 {
@@ -151,14 +167,29 @@ fn short256_final(ctx: ptr<function, SHA256_CTX>) -> u32 {
     (*ctx).data[56] = (*ctx).bitlen[1] >> 24;
 
     short256_transform(ctx);
-    return ((*ctx).state[0] >> (24 - i * 8)) & 0x000000ff;
+
+    for (i = 0; i < 4; i++) {
+        (*hash)[i] = ((*ctx).state[0] >> (24 - i * 8)) & 0x000000ff;
+        // *SNIP*
+    }
+
+    return hash;
 }
 
-// shortened sha256. Only returns the first byte of a normal sha256 digest
-// optimized for bitcoin's mnemonic seed checksums
-// takes 32 bits as input
-fn short256(input: array<u32, KIBBLE_SIZE>) -> u32 {
+// shortened sha256. Only returns the first 4 bytes of a normal sha256 digest
+// takes KIBBLE_COUNT "dense" 32 bit integers
+// returns 4 "sparse" bytes, for checksum
+fn short256(input: array<u32, KIBBLE_COUNT>) -> array<u32, 4> {
     var ctx: SHA256_CTX;
+    var buf: array<u32, BYTES_COUNT>;
+
+    // inflate each u32 -> [u32; 4]
+    for (var i = 0; i < KIBBLE_COUNT; i ++) {
+        var temp = extract_bytes(input[i]);
+        for (var j = 0; j < 4; j ++) {
+            buf[(i * KIBBLE_COUNT) + j] = temp[j];
+        }
+    }
 
 	// initialize context
     ctx.datalen = 0;

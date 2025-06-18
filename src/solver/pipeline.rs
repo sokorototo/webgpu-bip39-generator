@@ -1,10 +1,18 @@
 use super::*;
 use wgpu::util::DeviceExt;
 
-pub(crate) fn create(device: &wgpu::Device, words: &[types::Word; 4]) -> (wgpu::ComputePipeline, wgpu::BindGroup, wgpu::Buffer, wgpu::Buffer) {
-	assert!(
-		std::mem::size_of_val(words) as u32 <= device.limits().max_push_constant_size,
-		"Push Constants too small, unable to init pipeline"
+pub(crate) struct State {
+	pub pipeline: wgpu::ComputePipeline,
+	pub bind_group: wgpu::BindGroup,
+	pub results_source: wgpu::Buffer,
+	pub count_source: wgpu::Buffer,
+	pub target_buffer: wgpu::Buffer,
+}
+
+pub(crate) fn create(device: &wgpu::Device, constants: &types::PushConstants) -> State {
+	debug_assert!(
+		std::mem::size_of_val(constants) as u32 <= device.limits().max_push_constant_size,
+		"PushConstants too large for device, unable to init pipeline"
 	);
 
 	// prepare layout descriptor
@@ -16,9 +24,16 @@ pub(crate) fn create(device: &wgpu::Device, words: &[types::Word; 4]) -> (wgpu::
 
 	let results_buffer = device.create_buffer(&wgpu::BufferDescriptor {
 		label: Some("solver::results"),
-		size: (std::mem::size_of::<types::Word>() * MAX_RESULTS_FOUND as usize) as wgpu::BufferAddress,
+		size: (std::mem::size_of::<types::P2PKH_Address>() * MAX_RESULTS_FOUND as usize) as wgpu::BufferAddress,
 		usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
 		mapped_at_creation: false,
+	});
+
+	let target_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+		label: Some("solver::target-address"),
+		size: std::mem::size_of::<types::P2PKH_Address>() as wgpu::BufferAddress,
+		usage: wgpu::BufferUsages::STORAGE,
+		mapped_at_creation: true,
 	});
 
 	// init shader
@@ -54,6 +69,16 @@ pub(crate) fn create(device: &wgpu::Device, words: &[types::Word; 4]) -> (wgpu::
 				},
 				count: None,
 			},
+			wgpu::BindGroupLayoutEntry {
+				binding: 3,
+				visibility: wgpu::ShaderStages::COMPUTE,
+				ty: wgpu::BindingType::Buffer {
+					ty: wgpu::BufferBindingType::Storage { read_only: true },
+					has_dynamic_offset: false,
+					min_binding_size: None,
+				},
+				count: None,
+			},
 		],
 	};
 
@@ -72,6 +97,10 @@ pub(crate) fn create(device: &wgpu::Device, words: &[types::Word; 4]) -> (wgpu::
 				binding: 2,
 				resource: results_buffer.as_entire_binding(),
 			},
+			wgpu::BindGroupEntry {
+				binding: 3,
+				resource: target_buffer.as_entire_binding(),
+			},
 		],
 	});
 
@@ -81,7 +110,7 @@ pub(crate) fn create(device: &wgpu::Device, words: &[types::Word; 4]) -> (wgpu::
 		bind_group_layouts: &[&bind_group_layout],
 		push_constant_ranges: &[wgpu::PushConstantRange {
 			stages: wgpu::ShaderStages::COMPUTE,
-			range: 0..std::mem::size_of_val(words) as u32,
+			range: 0..std::mem::size_of_val(constants) as u32,
 		}],
 	});
 
@@ -96,5 +125,11 @@ pub(crate) fn create(device: &wgpu::Device, words: &[types::Word; 4]) -> (wgpu::
 		compilation_options: Default::default(),
 	});
 
-	(pipeline, bind_group, results_buffer, count_buffer)
+	State {
+		pipeline,
+		bind_group,
+		results_source: results_buffer,
+		count_source: count_buffer,
+		target_buffer,
+	}
 }

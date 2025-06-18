@@ -65,6 +65,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ace50bade8e6234aa140d9a2f552bbee1db4d353f69b8217bc503490fc1a9f26"
 
 [[package]]
+name = "base58"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6107fe1be6682a68940da878d9e9f5e90ca5745b3dec9fd1bb393c8777d4f581"
+
+[[package]]
 name = "bip39"
 version = "2.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -656,12 +662,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sha256-rs"
-version = "1.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "820d42be58154d959c60824cf82005ca17c708b58ce5c3965d62a93a8aec4aa2"
-
-[[package]]
 name = "smallvec"
 version = "1.15.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -873,11 +873,11 @@ name = "webgpu-bip39-validator"
 version = "0.1.0"
 dependencies = [
  "argh",
+ "base58",
  "bip39",
  "bytemuck",
  "oneshot",
  "pollster",
- "sha256-rs",
  "wgpu",
 ]
 

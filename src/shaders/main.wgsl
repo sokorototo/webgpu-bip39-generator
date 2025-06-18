@@ -3,36 +3,27 @@ const DISPATCH_SIZE = 65536; // 2 ^ 16
 const THREAD_COUNT = 4194304; // WORKGROUP_SIZE * DISPATCH_SIZE
 const MAX_RESULTS_FOUND = 65536; // ARRAY_MAX_SIZE
 
-// NOTE: 3rd word is unknown
-struct Word {
-    bits: u32,
-    checksum: u32
-};
+const P2PKH_ADDRESS_SIZE = 20;
 
 struct PushConstants {
-  items: array<Word, 4>,
+    word0: u32,
+    word1: u32,
+    word2: u32,
+    word3: u32,
+    entropy: u32,
+    checksum: u32,
 };
 
 var<push_constant> words: PushConstants;
 
 @group(0) @binding(1)
-var<storage, read_write> count: atomic<u32>; // MAX_RESULTS_FOUND
+var<storage, read_write> count: atomic<u32>;
 
 @group(0) @binding(2)
-var<storage, read_write> results: array<Word, MAX_RESULTS_FOUND>;
+var<storage, read_write> results: array<array<u32, P2PKH_ADDRESS_SIZE>, MAX_RESULTS_FOUND>;
 
-// TODO: input target addresses
-
-fn extract_bytes(input: u32) -> array<u32, 4> {
-    var bytes: array<u32, 4>;
-
-    bytes[0] = (input >> 0u) & 0xFFu;
-    bytes[1] = (input >> 8u) & 0xFFu;
-    bytes[2] = (input >> 16u) & 0xFFu;
-    bytes[3] = (input >> 24u) & 0xFFu;
-
-    return bytes;
-}
+@group(0) @binding(3)
+var<storage, read> target_address: array<u32, P2PKH_ADDRESS_SIZE>;
 
 // workgroups: (2 ^ 6, 1, 1) rectangles, basically 1D
 // dispatch: (2 ^ 16, 1, 1), but we index into the space depending on the offset
@@ -52,13 +43,14 @@ fn main(
 
      // upper 10 bits are known: combine, hash and check
     let combined = bits | entropy;
-    var bytes = extract_bytes(combined);
-
     var short256 = short256(bytes);
+
     if (short256 & checksum) != short256 {
         return;
     }
 
+     // TODO: extract upper 22 bits of entropy from push_constants::checksum
+
     var index = atomicAdd(&count, 1u);
-    results[index] = Word(combined, checksum);
+    results[index] = Word(combined, entropy);
 }

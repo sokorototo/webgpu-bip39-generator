@@ -1,5 +1,3 @@
-use std::{collections::BTreeSet, io::BufRead};
-
 pub(crate) mod device;
 pub(crate) mod solver;
 
@@ -16,8 +14,18 @@ pub(crate) struct Config {
 	#[argh(option, short = 'p', default = "(0,17592186044416)", from_str_fn(parse_partition))]
 	range: (u64, u64),
 	/// file containing list of known addresses to verify against
-	#[argh(option, short = 'a', default = "BTreeSet::new()", from_str_fn(read_file))]
-	addresses: BTreeSet<String>,
+	#[argh(option, short = 'a', from_str_fn(parse_address))]
+	address: solver::types::P2PKH_Address,
+}
+
+pub(crate) fn parse_address(path: &str) -> Result<[u8; 20], String> {
+	use base58::FromBase58;
+
+	let bytes = path.from_base58().unwrap();
+	let mut buf = [0u8; 20];
+	buf.copy_from_slice(&bytes[2..22]);
+
+	Ok(buf)
 }
 
 pub(crate) fn parse_partition(path: &str) -> Result<(u64, u64), String> {
@@ -25,22 +33,21 @@ pub(crate) fn parse_partition(path: &str) -> Result<(u64, u64), String> {
 	Ok((parts.next().unwrap(), parts.next().unwrap()))
 }
 
-pub(crate) fn read_file(path: &str) -> Result<BTreeSet<String>, String> {
-	let file = std::fs::File::open(path).unwrap();
-	let reader = std::io::BufReader::with_capacity(64, file);
-	Ok(reader.lines().map(|line| line.unwrap()).collect())
-}
-
 #[pollster::main]
 async fn main() {
 	let config: Config = argh::from_env();
 
-	// ensure all stencil words are valid
+	// address range must be below 2^44
+	if config.range.1 > 2u64.pow(44) || config.range.0 > config.range.1 {
+		panic!("Invalid Range: Maximum problem space is [0, 17592186044416] (2^44)");
+	};
+
+	// stencil words must be valid
 	if let Some(unknown) = config.stencil.iter().find(|w| *w != "_" && !bip39::Language::English.word_list().contains(&w.as_str())) {
 		panic!("Invalid Stencil: Contains Unknown Word {}", unknown)
 	};
 
-	// ensure stencil matches expected pattern of 4 words, 4 stars and 4 words
+	// stencil must match expected pattern of 4 words, 4 stars and 4 words
 	if !config.stencil.iter().enumerate().all(|(idx, ss)| (4..8).contains(&idx) || (ss != "_")) {
 		panic!("Invalid Stencil Pattern: Expected 4 words, 4 stars and 4 words\n Eg: throw roast bulk opinion * * * * guide female change thought");
 	};

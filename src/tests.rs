@@ -1,13 +1,18 @@
 use super::*;
 
-use sha256_rs::sha256;
+use bitcoin_hashes::Sha256;
 use wgpu::util::DeviceExt;
+
+fn sha256(bytes: &[u8]) -> [u8; 32] {
+	let hash = Sha256::hash(bytes);
+	*hash.as_byte_array()
+}
 
 #[test]
 fn test_stencil_to_word_array() {
 	let samples = [
-		"bundle beyond magnet scare legal cruise wash grid fury dutch utility dial",
 		"small impose define destroy kingdom never gospel fold cement adjust rigid admit",
+		"bundle beyond magnet scare legal cruise wash grid fury dutch utility dial",
 		"song person ask gaze visa judge merit school stick select gold orbit",
 		"throw roast bulk opinion trick subway talent empower guide female change thought",
 	];
@@ -15,9 +20,25 @@ fn test_stencil_to_word_array() {
 	for sample in samples {
 		let mnemonic = bip39::Mnemonic::parse(sample).unwrap();
 
-		for (idx, word) in solver::map_stencil_to_words(sample.split(" ")).into_iter().enumerate() {
-			assert_eq!((mnemonic.checksum() >> (4 - idx)) & word.checksum as u8, word.checksum as u8);
-			assert_eq!(mnemonic.to_entropy_array().0[idx * 4..(idx + 1) * 4], word.bits.to_le_bytes());
+		let entropy_bytes = mnemonic
+			.to_entropy()
+			.chunks(4)
+			.map(|s| {
+				let mut buf = [0u8; 4];
+				buf.copy_from_slice(s);
+				u32::from_le_bytes(buf)
+			})
+			.map(|d| d.to_string())
+			.collect::<Vec<_>>()
+			.join(", ");
+
+		println!("\n[{}] = {:04b}", entropy_bytes, mnemonic.checksum());
+
+		for (idx, word) in solver::stencil_to_bytes(sample.split(" ")).into_iter().enumerate() {
+			println!("[{}]: Word = {}, Checksum = {:04b}", idx, word.entropy, word.checksum);
+
+			assert_eq!(mnemonic.checksum() & word.checksum as u8, word.checksum as u8);
+			assert_eq!(mnemonic.to_entropy_array().0[idx * 4..(idx + 1) * 4], word.entropy.to_le_bytes());
 		}
 	}
 }

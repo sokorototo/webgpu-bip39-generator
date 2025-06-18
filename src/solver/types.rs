@@ -1,6 +1,13 @@
+const P2PKH_ADDRESS_SIZE: usize = 20;
+
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-pub(crate) struct Word {
-	pub(crate) bits: u32,
+pub(crate) struct PushConstants {
+	pub(crate) words: [u32; 4],
+	pub(crate) entropy: u32,
+	/// Checksum is 1 or 0
 	pub(crate) checksum: u32,
 }
+
+#[allow(non_camel_case_types)]
+pub(crate) type P2PKH_Address = [u8; P2PKH_ADDRESS_SIZE];
