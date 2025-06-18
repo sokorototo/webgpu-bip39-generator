@@ -116,7 +116,8 @@ pub(crate) fn solve(config: &super::Config, device: &wgpu::Device, queue: &wgpu:
 				let results: &[types::P2PKH_Address] = bytemuck::cast_slice(range.as_ref());
 
 				for res in results.iter().take(count as _) {
-					dbg!(res);
+					println!("Entropy2 = {}, Entropy3 = {}, Combined2 = {}, Combined3 = {}", res[0], res[1], res[2], res[3]);
+					println!("short256[0] = {}, short256[0] = {}, short256[0] = {}, short256[0] = {}", res[4], res[5], res[6], res[7]);
 				}
 
 				drop(range);
