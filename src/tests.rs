@@ -1,179 +1,25 @@
+use super::*;
+
 use sha256_rs::sha256;
 use wgpu::util::DeviceExt;
 
-use super::*;
-
-const KIBBLE_SIZE: usize = 4;
-const INPUTS: usize = 16;
-
-const INPUT_BUFFER_SIZE: usize = std::mem::size_of::<u32>() * KIBBLE_SIZE * INPUTS;
-const OUTPUT_BUFFER_SIZE: usize = std::mem::size_of::<u32>() * INPUTS;
-
-fn verify(gpu_input: [u8; INPUT_BUFFER_SIZE], cpu_input: [[u8; KIBBLE_SIZE]; INPUTS]) {
-	let mut gpu_extracted = [[0u8; KIBBLE_SIZE]; INPUTS];
-
-	let gpu_bytes = gpu_input
-		.chunks_exact(std::mem::size_of::<u32>())
-		.map(|w| {
-			let mut le_bytes = [0u8; 4];
-			le_bytes.copy_from_slice(w);
-			u32::from_le_bytes(le_bytes) as u8
-		})
-		.collect::<Vec<_>>();
-
-	assert_eq!(gpu_bytes.len(), INPUTS * KIBBLE_SIZE);
-
-	for (idx, bytes) in gpu_bytes.chunks_exact(KIBBLE_SIZE).enumerate() {
-		let mut target = [0u8; KIBBLE_SIZE];
-		target.copy_from_slice(bytes);
-		gpu_extracted[idx] = target;
-	}
-
-	assert_eq!(gpu_extracted, cpu_input);
-}
-
 #[test]
-fn test_short256_implementation() {
-	// input is 16 * 4-byte words
-	let mut input = [[0u8; KIBBLE_SIZE]; INPUTS];
-	for word in input.iter_mut() {
-		for byte in word {
-			*byte = simplerand::rand();
+fn test_stencil_to_word_array() {
+	let samples = [
+		"bundle beyond magnet scare legal cruise wash grid fury dutch utility dial",
+		"small impose define destroy kingdom never gospel fold cement adjust rigid admit",
+		"song person ask gaze visa judge merit school stick select gold orbit",
+		"throw roast bulk opinion trick subway talent empower guide female change thought",
+	];
+
+	for sample in samples {
+		let mnemonic = bip39::Mnemonic::parse(sample).unwrap();
+
+		for (idx, word) in solver::map_stencil_to_words(sample.split(" ")).into_iter().enumerate() {
+			assert_eq!((mnemonic.checksum() >> (4 - idx)) & word.checksum as u8, word.checksum as u8);
+			assert_eq!(mnemonic.to_entropy_array().0[idx * 4..(idx + 1) * 4], word.bits.to_le_bytes());
 		}
 	}
-
-	// Map each u8 to a u32, as u8 isn't supported in wgpu
-	let gpu_input = input.map(|w| w.map(|i| i as u32));
-	let gpu_input: [u8; INPUT_BUFFER_SIZE] = unsafe { std::mem::transmute(gpu_input) };
-
-	// verify memory layout
-	verify(gpu_input, input);
-
-	// init device
-	let (device, queue) = pollster::block_on(device::init());
-
-	// initialize input buffers
-	let input_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-		label: Some("test-sha256::input"),
-		contents: &gpu_input,
-		usage: wgpu::BufferUsages::STORAGE,
-	});
-
-	let output_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-		label: Some("test-sha256::output"),
-		size: OUTPUT_BUFFER_SIZE as u64,
-		usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::MAP_READ,
-		mapped_at_creation: false,
-	});
-
-	// init shader
-	let source = concat!(include_str!("shaders/short256.wgsl"), "\n", include_str!("shaders/test_short256.wgsl"));
-	let descriptor = wgpu::ShaderModuleDescriptor {
-		label: Some("test-sha256::main"),
-		source: wgpu::ShaderSource::Wgsl(source.into()),
-	};
-
-	let shader = device.create_shader_module(descriptor);
-
-	// configure bind group layout
-	let descriptor = wgpu::BindGroupLayoutDescriptor {
-		label: Some("test-sha256::layout"),
-		entries: &[
-			wgpu::BindGroupLayoutEntry {
-				binding: 0,
-				visibility: wgpu::ShaderStages::COMPUTE,
-				ty: wgpu::BindingType::Buffer {
-					ty: wgpu::BufferBindingType::Storage { read_only: true },
-					has_dynamic_offset: false,
-					min_binding_size: None,
-				},
-				count: None,
-			},
-			wgpu::BindGroupLayoutEntry {
-				binding: 1,
-				visibility: wgpu::ShaderStages::COMPUTE,
-				ty: wgpu::BindingType::Buffer {
-					ty: wgpu::BufferBindingType::Storage { read_only: false },
-					has_dynamic_offset: false,
-					min_binding_size: None,
-				},
-				count: None,
-			},
-		],
-	};
-
-	let bind_group_layout = device.create_bind_group_layout(&descriptor);
-
-	// configure bind groups
-	let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-		label: Some("test-sha256::bind_group"),
-		layout: &bind_group_layout,
-		entries: &[
-			wgpu::BindGroupEntry {
-				binding: 0,
-				resource: input_buffer.as_entire_binding(),
-			},
-			wgpu::BindGroupEntry {
-				binding: 1,
-				resource: output_buffer.as_entire_binding(),
-			},
-		],
-	});
-
-	// configure pipeline layout
-	let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-		label: Some("test-sha256::layout"),
-		bind_group_layouts: &[&bind_group_layout],
-		push_constant_ranges: &[],
-	});
-
-	// create compute pipeline
-	let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-		label: Some("test-sha256::pipeline"),
-		module: &shader,
-		entry_point: Some("main"),
-		layout: Some(&pipeline_layout),
-		// defaults
-		cache: None,
-		compilation_options: Default::default(),
-	});
-
-	// create command encoder
-	let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("test-sha256::encoder") });
-
-	// queue commands
-	let descriptor = wgpu::ComputePassDescriptor {
-		label: Some("test-sha256::compute_pass"),
-		timestamp_writes: None,
-	};
-
-	{
-		let mut p = encoder.begin_compute_pass(&descriptor);
-
-		p.set_pipeline(&pipeline);
-		p.set_bind_group(0, &bind_group, &[]);
-		p.dispatch_workgroups(1, 1, 1);
-	}
-
-	// submit commands
-	let commands = encoder.finish();
-	queue.submit([commands]);
-
-	// read output buffer
-	output_buffer.clone().map_async(wgpu::MapMode::Read, .., move |res| {
-		if let Ok(_) = res {
-			let view = output_buffer.slice(..).get_mapped_range();
-			let mut gpu_output = [0u8; OUTPUT_BUFFER_SIZE];
-			gpu_output.copy_from_slice(&view);
-
-			// parse as u8 instead of u32, other 3 bytes are simply never populated
-			let gpu_output = gpu_output.chunks_exact(std::mem::size_of::<u32>()).map(|w| w[0]).collect::<Vec<_>>();
-
-			// generate short256 on CPU
-			let cpu_output = input.map(|k| sha256(&k)[0]);
-			assert_eq!(cpu_output.as_slice(), gpu_output.as_slice());
-		}
-	});
 }
 
 const MAX_RESULTS_FOUND: usize = 65536;
@@ -197,11 +43,12 @@ struct Match {
 
 type Results = [Match; MAX_RESULTS_FOUND];
 
-fn _verify_debug<'a, T: Iterator<Item = (usize, &'a Match)>>(matches: T, knowns: &Knowns) {
-	let mut set = std::collections::BTreeSet::new();
+#[allow(unused)]
+fn verify_debug<'a, T: Iterator<Item = (usize, &'a Match)>>(matches: T, _knowns: &Knowns) {
+	let mut left_set = std::collections::BTreeSet::new();
 
-	for (idx, _match) in matches {
-		assert!(set.insert(_match.left[1]), "Duplicate Entropy Found: {}", _match.left[1]);
+	for (_, _match) in matches {
+		assert!(left_set.insert(_match.left[1]), "Duplicate Left Entropy Found: {}", _match.left[1]);
 
 		let left_bytes = _match.left[1].to_le_bytes();
 		let right_bytes = _match.right[1].to_le_bytes();
@@ -214,7 +61,7 @@ fn _verify_debug<'a, T: Iterator<Item = (usize, &'a Match)>>(matches: T, knowns:
 	}
 }
 
-fn verify_2<'a, T: Iterator<Item = (usize, &'a Match)>>(matches: T, knowns: &Knowns) {
+fn verify_checksum<'a, T: Iterator<Item = (usize, &'a Match)>>(matches: T, knowns: &Knowns) {
 	for (idx, _match) in matches {
 		println!("[{}] = {:?}", idx, _match);
 
@@ -387,6 +234,8 @@ fn test_checksum_filters() {
 		pass.set_pipeline(&pipeline);
 		pass.set_bind_group(0, &bind_group, &[]);
 		pass.dispatch_workgroups(32, 1, 1);
+
+		// queue copy commands
 	}
 
 	// submit commands
@@ -412,7 +261,7 @@ fn test_checksum_filters() {
 
 		let matches = results.iter().enumerate().take(count as usize);
 
-		verify_2(matches, &knowns);
+		verify_checksum(matches, &knowns);
 		// verify_debug(matches, &knowns);
 	});
 }

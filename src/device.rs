@@ -17,7 +17,7 @@ pub(crate) async fn init() -> (wgpu::Device, wgpu::Queue) {
 	// acquire device and queue
 	let device_options = wgpu::DeviceDescriptor {
 		label: Some("mnemonics-extractor"),
-		required_features: adapter.features(),
+		required_features: adapter.features() | wgpu::Features::PUSH_CONSTANTS,
 		required_limits: adapter.limits(),
 		..Default::default()
 	};

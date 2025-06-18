@@ -70,7 +70,7 @@ fn main(
     var right_short256 = short256(right_bytes);
     var right_matches = (right_short256 & knowns.checksum) == right_short256;
 
-    // // debug
+     // debug
     // var index = atomicAdd(&count, 1u);
 
     // var l_debug = array<u32, 4>(left_entropy, left_test, left_short256, left_short256 & 1);
