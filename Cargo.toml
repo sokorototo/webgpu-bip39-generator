@@ -18,6 +18,13 @@ wgpu = { version = "25", default-features = false, features = [
 	"strict_asserts",
 ] }
 
+[target.'cfg(target_os = "linux")'.dependencies]
+wgpu = { version = "25", default-features = false, features = [
+	"vulkan",
+	"dx12",
+	"strict_asserts",
+] }
+
 [target.'cfg(target_os = "macos")'.dependencies]
 wgpu = { version = "25", default-features = false, features = [
 	"wgsl",
