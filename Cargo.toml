@@ -20,8 +20,8 @@ wgpu = { version = "25", default-features = false, features = [
 
 [target.'cfg(target_os = "linux")'.dependencies]
 wgpu = { version = "25", default-features = false, features = [
+	"wgsl",
 	"vulkan",
-	"dx12",
 	"strict_asserts",
 ] }
 
