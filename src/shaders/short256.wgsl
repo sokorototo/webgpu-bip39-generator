@@ -169,7 +169,7 @@ fn short256_final(ctx: ptr<function, SHA256_CTX>) -> array<u32, 4> {
     short256_transform(ctx);
 
     for (i = 0; i < 4; i++) {
-        (*hash)[i] = ((*ctx).state[0] >> (24 - i * 8)) & 0x000000ff;
+        hash[i] = ((*ctx).state[0] >> (24 - i * 8)) & 0x000000ff;
         // *SNIP*
     }
 
@@ -204,6 +204,6 @@ fn short256(input: array<u32, KIBBLE_COUNT>) -> array<u32, 4> {
     ctx.state[6] = 0x1f83d9ab;
     ctx.state[7] = 0x5be0cd19;
 
-    short256_update(&ctx, input);
+    short256_update(&ctx, buf);
     return short256_final(&ctx);
 }

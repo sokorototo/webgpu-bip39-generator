@@ -12,10 +12,8 @@ pub(crate) fn stencil_to_bytes<'a, I: Iterator<Item = &'a str>>(words: I) -> typ
 	let replaced = words.map(|s| if s == "_" { "abandon" } else { s }).collect::<Vec<_>>().join(" ");
 	let mnemonic = bip39::Mnemonic::parse_in_normalized_without_checksum_check(bip39::Language::English, &replaced).unwrap();
 
-	let (entropy, len) = mnemonic.to_entropy_array();
-	assert_eq!(len, 16, "Only 12 word mnemonics are supported");
-
-	let slice: &[u32] = bytemuck::cast_slice(&entropy[..len]);
+	let entropy = mnemonic.to_entropy();
+	let slice: &[u32] = bytemuck::cast_slice(&entropy);
 
 	let mut words = [0u32; 4];
 	words.copy_from_slice(slice);
@@ -37,11 +35,9 @@ pub(crate) fn solve(config: &super::Config, device: &wgpu::Device, queue: &wgpu:
 		results_source,
 		count_source,
 		target_buffer,
-	} = pipeline::create(device, &constants);
+	} = pipeline::create(device, config);
 
 	// init buffers
-	queue.write_buffer(&target_buffer, 0, &config.address);
-
 	let results_destination = device.create_buffer(&wgpu::BufferDescriptor {
 		label: Some("solver::results-destination"),
 		size: (std::mem::size_of::<[types::P2PKH_Address; MAX_RESULTS_FOUND]>()) as wgpu::BufferAddress,

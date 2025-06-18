@@ -10,4 +10,4 @@ pub(crate) struct PushConstants {
 }
 
 #[allow(non_camel_case_types)]
-pub(crate) type P2PKH_Address = [u8; P2PKH_ADDRESS_SIZE];
+pub(crate) type P2PKH_Address = [u32; P2PKH_ADDRESS_SIZE];

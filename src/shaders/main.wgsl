@@ -14,7 +14,7 @@ struct PushConstants {
     checksum: u32,
 };
 
-var<push_constant> words: PushConstants;
+var<push_constant> constants: PushConstants;
 
 @group(0) @binding(1)
 var<storage, read_write> count: atomic<u32>;
@@ -36,21 +36,27 @@ fn main(
         return;
     }
 
-     // lower 22 bits of entropy come from local index
-    var entropy = (workgroup_id.x * DISPATCH_SIZE) + local.x;
-    var bits = words.items[2].bits;
-    var checksum = words.items[2].checksum;
+    // word2: lower 22 bits of entropy come from local index, upper 10 bits are known
+    var entropy_2 = (workgroup_id.x * DISPATCH_SIZE) + local.x;
+    let combined_2 = constants.word2 | entropy_2;
 
-     // upper 10 bits are known: combine, hash and check
-    let combined = bits | entropy;
-    var short256 = short256(bytes);
+    // word3: upper 22 bits of entropy come from push_constants::entropy, lower 10 bits are known
+    var entropy_3 = constants.entropy;
+    let combined_3 = constants.word3 | entropy_2;
 
-    if (short256 & checksum) != short256 {
+    // assemble input
+    var input = array<u32, KIBBLE_COUNT>(constants.word0, combined_2, combined_3, constants.word3);
+    var short256 = short256(input);
+
+    if (short256[0] & constants.checksum) != short256[0] {
         return;
     }
 
-     // TODO: extract upper 22 bits of entropy from push_constants::checksum
-
     var index = atomicAdd(&count, 1u);
-    results[index] = Word(combined, entropy);
+    results[index] = array<u32, P2PKH_ADDRESS_SIZE>(
+        entropy_2, entropy_3, combined_2, combined_3,
+        short256[0], short256[1], short256[2], short256[3],
+        0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0,
+    );
 }

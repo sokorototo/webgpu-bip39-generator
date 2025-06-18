@@ -9,9 +9,9 @@ pub(crate) struct State {
 	pub target_buffer: wgpu::Buffer,
 }
 
-pub(crate) fn create(device: &wgpu::Device, constants: &types::PushConstants) -> State {
+pub(crate) fn create(device: &wgpu::Device, config: &crate::Config) -> State {
 	debug_assert!(
-		std::mem::size_of_val(constants) as u32 <= device.limits().max_push_constant_size,
+		std::mem::size_of::<types::PushConstants>() as u32 <= device.limits().max_push_constant_size,
 		"PushConstants too large for device, unable to init pipeline"
 	);
 
@@ -29,11 +29,10 @@ pub(crate) fn create(device: &wgpu::Device, constants: &types::PushConstants) ->
 		mapped_at_creation: false,
 	});
 
-	let target_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+	let target_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
 		label: Some("solver::target-address"),
-		size: std::mem::size_of::<types::P2PKH_Address>() as wgpu::BufferAddress,
 		usage: wgpu::BufferUsages::STORAGE,
-		mapped_at_creation: true,
+		contents: bytemuck::cast_slice(&config.address),
 	});
 
 	// init shader
@@ -110,7 +109,7 @@ pub(crate) fn create(device: &wgpu::Device, constants: &types::PushConstants) ->
 		bind_group_layouts: &[&bind_group_layout],
 		push_constant_ranges: &[wgpu::PushConstantRange {
 			stages: wgpu::ShaderStages::COMPUTE,
-			range: 0..std::mem::size_of_val(constants) as u32,
+			range: 0..std::mem::size_of::<types::PushConstants>() as u32,
 		}],
 	});
 

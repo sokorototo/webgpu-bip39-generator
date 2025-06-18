@@ -18,14 +18,14 @@ pub(crate) struct Config {
 	address: solver::types::P2PKH_Address,
 }
 
-pub(crate) fn parse_address(path: &str) -> Result<[u8; 20], String> {
+pub(crate) fn parse_address(path: &str) -> Result<[u32; 20], String> {
 	use base58::FromBase58;
 
 	let bytes = path.from_base58().unwrap();
 	let mut buf = [0u8; 20];
 	buf.copy_from_slice(&bytes[2..22]);
 
-	Ok(buf)
+	Ok(buf.map(|b| b as u32))
 }
 
 pub(crate) fn parse_partition(path: &str) -> Result<(u64, u64), String> {
