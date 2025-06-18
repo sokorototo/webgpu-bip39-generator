@@ -36,12 +36,12 @@ async fn main() {
 	let config: Config = argh::from_env();
 
 	// ensure all stencil words are valid
-	if let Some(unknown) = config.stencil.iter().find(|w| *w != "*" && !bip39::Language::English.word_list().contains(&w.as_str())) {
+	if let Some(unknown) = config.stencil.iter().find(|w| *w != "_" && !bip39::Language::English.word_list().contains(&w.as_str())) {
 		panic!("Invalid Stencil: Contains Unknown Word {}", unknown)
 	};
 
 	// ensure stencil matches expected pattern of 4 words, 4 stars and 4 words
-	if !config.stencil.iter().enumerate().all(|(idx, ss)| (4..8).contains(&idx) || (ss != "*")) {
+	if !config.stencil.iter().enumerate().all(|(idx, ss)| (4..8).contains(&idx) || (ss != "_")) {
 		panic!("Invalid Stencil Pattern: Expected 4 words, 4 stars and 4 words\n Eg: throw roast bulk opinion * * * * guide female change thought");
 	};
 

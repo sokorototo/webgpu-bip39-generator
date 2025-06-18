@@ -14,7 +14,7 @@ pub(crate) fn map_stencil_to_words<'a, I: Iterator<Item = &'a str>>(words: I) ->
 	let mut out: [types::Word; 4] = bytemuck::Zeroable::zeroed();
 
 	// map stencil to mnemonic
-	let replaced = words.map(|s| if s == "*" { "abandon" } else { s }).collect::<Vec<_>>().join(" ");
+	let replaced = words.map(|s| if s == "_" { "abandon" } else { s }).collect::<Vec<_>>().join(" ");
 	let replaced = replaced.to_lowercase();
 
 	let mnemonic = bip39::Mnemonic::parse_in_normalized_without_checksum_check(bip39::Language::English, &replaced).unwrap();
