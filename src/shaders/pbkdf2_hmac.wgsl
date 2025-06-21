@@ -1,0 +1,3 @@
+const SHA512_BLOCK_SIZE	= 128;
+const SHA512_HASH_LENGTH = 64;
+

@@ -50,16 +50,17 @@ fn main(
     let combined_2 = constants.word1 | entropy_2;
 
     // word[2]: upper 22 bits of entropy come from push_constants::entropy, lower 10 bits are known
-    // TODO: stays the same per dispatch
     let combined_3 = constants.word2 | constants.entropy;
 
-    // assemble input
+    // verify mnemonic checksum
     var input = array<u32, KIBBLE_COUNT>(constants.word0, combined_2, combined_3, constants.word3);
     var short256 = short256(input);
 
     if (short256[0] & constants.checksum) != short256[0] {
         return;
     }
+
+    // 
 
     var index = atomicAdd(&count, 1u);
     results[index] = array<u32, P2PKH_ADDRESS_SIZE>(

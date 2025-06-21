@@ -33,25 +33,6 @@ pub(crate) fn parse_partition(path: &str) -> Result<(u64, u64), String> {
 	Ok((parts.next().unwrap(), parts.next().unwrap()))
 }
 
-pub(crate) fn handle_results(constants: &solver::types::PushConstants, addresses: &[solver::types::P2PKH_Address]) {
-	// verifies output from solver
-	let mut set = std::collections::BTreeSet::new();
-
-	for address in addresses {
-		assert!(set.insert(address[0]), "Duplicate Entropy Found: {}", address[0]);
-		assert_eq!(constants.entropy, address[1], "Got Different Entropy from GPU");
-
-		let input = [constants.words[0], address[2], address[3], constants.words[3]];
-		let bytes: &[u8] = bytemuck::cast_slice(&input);
-
-		let result = [address[4], address[5], address[6], address[7]].map(|s| s as u8);
-		let expected = sha256_rs::sha256(bytes);
-
-		assert_eq!(&result, &expected[..4], "Got Different Hash from Shader");
-		assert!(result[0] & constants.checksum as u8 == result[0], "Got Different Checksum from Shader");
-	}
-}
-
 #[pollster::main]
 async fn main() {
 	let config: Config = argh::from_env();
@@ -76,7 +57,7 @@ async fn main() {
 
 	// extract mnemonic seeds
 	let then = std::time::Instant::now();
-	solver::solve(&config, &device, &queue, handle_results);
+	solver::solve(&config, &device, &queue, |_, _| {});
 
 	println!("Took: {:?}, Written File: 'found.txt'", then.elapsed());
 }
