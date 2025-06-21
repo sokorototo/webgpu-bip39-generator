@@ -23,7 +23,6 @@ const k = array<u32, 64>(
     0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2
 );
 
-fn ROTLEFT(a: u32, b: u32) -> u32 { return (((a) << (b)) | ((a) >> (32 - (b)))); }
 fn ROTRIGHT(a: u32, b: u32) -> u32 { return (((a) >> (b)) | ((a) << (32 - (b)))); }
 
 fn CH(x: u32, y: u32, z: u32) -> u32 { return (((x) & (y)) ^ (~(x) & (z))); }

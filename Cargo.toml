@@ -15,7 +15,7 @@ sha256-rs = "1"
 [target.'cfg(target_os = "windows")'.dependencies]
 wgpu = { version = "25", default-features = false, features = [
 	"wgsl",
-	"dx12",
+	"vulkan",
 	"strict_asserts",
 ] }
 
