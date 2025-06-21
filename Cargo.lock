@@ -662,6 +662,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "sha256-rs"
+version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "820d42be58154d959c60824cf82005ca17c708b58ce5c3965d62a93a8aec4aa2"
+
+[[package]]
 name = "smallvec"
 version = "1.15.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -878,6 +884,7 @@ dependencies = [
  "bytemuck",
  "oneshot",
  "pollster",
+ "sha256-rs",
  "wgpu",
 ]
 

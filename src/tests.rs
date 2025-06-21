@@ -34,7 +34,7 @@ fn test_stencil_to_word_array() {
 
 		println!("\n[{}] = {:04b}", entropy_bytes, mnemonic.checksum());
 
-		for (idx, word) in solver::stencil_to_bytes(sample.split(" ")).into_iter().enumerate() {
+		for (idx, word) in solver::stencil_to_constants(sample.split(" ")).into_iter().enumerate() {
 			println!("[{}]: Word = {}, Checksum = {:04b}", idx, word.entropy, word.checksum);
 
 			assert_eq!(mnemonic.checksum() & word.checksum as u8, word.checksum as u8);

@@ -5,7 +5,7 @@ pub(crate) struct State {
 	pub pipeline: wgpu::ComputePipeline,
 	pub bind_group: wgpu::BindGroup,
 	pub results_source: wgpu::Buffer,
-	pub count_source: wgpu::Buffer,
+	pub count_buffer: wgpu::Buffer,
 	pub target_buffer: wgpu::Buffer,
 }
 
@@ -128,7 +128,7 @@ pub(crate) fn create(device: &wgpu::Device, config: &crate::Config) -> State {
 		pipeline,
 		bind_group,
 		results_source: results_buffer,
-		count_source: count_buffer,
+		count_buffer,
 		target_buffer,
 	}
 }

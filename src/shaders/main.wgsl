@@ -1,8 +1,11 @@
 const WORKGROUP_SIZE = 64; // 2 ^ 6
-const DISPATCH_SIZE = 65536; // 2 ^ 16
-const THREAD_COUNT = 4194304; // WORKGROUP_SIZE * DISPATCH_SIZE
-const MAX_RESULTS_FOUND = 65536; // ARRAY_MAX_SIZE
 
+const DISPATCH_SIZE_X = 256; // 2 ^ 8
+const DISPATCH_SIZE_Y = 256; // 2 ^ 8
+
+const THREAD_COUNT = 4194304; // WORKGROUP_SIZE * DISPATCH_SIZE_Y * DISPATCH_SIZE_X
+
+const MAX_RESULTS_FOUND = 65536; // ARRAY_MAX_SIZE
 const P2PKH_ADDRESS_SIZE = 20;
 
 struct PushConstants {
@@ -10,6 +13,7 @@ struct PushConstants {
     word1: u32,
     word2: u32,
     word3: u32,
+    // increments from 2^10 to 2^32
     entropy: u32,
     checksum: u32,
 };
@@ -26,7 +30,7 @@ var<storage, read_write> results: array<array<u32, P2PKH_ADDRESS_SIZE>, MAX_RESU
 var<storage, read> target_address: array<u32, P2PKH_ADDRESS_SIZE>;
 
 // workgroups: (2 ^ 6, 1, 1) rectangles, basically 1D
-// dispatch: (2 ^ 16, 1, 1), but we index into the space depending on the offset
+// dispatch: (2 ^ 8, 2 ^ 8, 1), but we index into the space depending on the offset
 @compute @workgroup_size(WORKGROUP_SIZE)
 fn main(
     @builtin(local_invocation_id) local: vec3<u32>,
@@ -36,13 +40,18 @@ fn main(
         return;
     }
 
-    // word2: lower 22 bits of entropy come from local index, upper 10 bits are known
-    var entropy_2 = (workgroup_id.x * DISPATCH_SIZE) + local.x;
-    let combined_2 = constants.word2 | entropy_2;
+    // evaluate local index: imagine a 256*256*64 cube
+    var lower_cube = (DISPATCH_SIZE_X * DISPATCH_SIZE_Y * local.x);
+    var lower_rect = DISPATCH_SIZE_X * workgroup_id.y;
+    var lower_line = workgroup_id.x;
 
-    // word3: upper 22 bits of entropy come from push_constants::entropy, lower 10 bits are known
-    var entropy_3 = constants.entropy;
-    let combined_3 = constants.word3 | entropy_2;
+    // word[1]: lower 22 bits of entropy come from local index, upper 10 bits are known
+    var entropy_2 = lower_cube + lower_rect + lower_line;
+    let combined_2 = constants.word1 | entropy_2;
+
+    // word[2]: upper 22 bits of entropy come from push_constants::entropy, lower 10 bits are known
+    // TODO: stays the same per dispatch
+    let combined_3 = constants.word2 | constants.entropy;
 
     // assemble input
     var input = array<u32, KIBBLE_COUNT>(constants.word0, combined_2, combined_3, constants.word3);
@@ -54,7 +63,7 @@ fn main(
 
     var index = atomicAdd(&count, 1u);
     results[index] = array<u32, P2PKH_ADDRESS_SIZE>(
-        entropy_2, entropy_3, combined_2, combined_3,
+        entropy_2, constants.entropy, combined_2, combined_3,
         short256[0], short256[1], short256[2], short256[3],
         0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, 0,
