@@ -1,7 +1,7 @@
 const SHA512_BLOCK_SIZE	= 128;
 const SHA512_HASH_LENGTH = 64;
 
-const SHA512_MAX_UPDATE_SIZE = 256;
+const SHA512_MAX_INPUT_SIZE = 256;
 
 struct SHA512_CTX {
     state: array<u64, 8>,
@@ -41,11 +41,6 @@ const K = array<u64, 80>(
 	0x5fcb6fab3ad6faeclu, 0x6c44198c4a475817lu
 );
 
-// for u64 larger than u32::MAX, we basically split it into 2 32 bit numbers
-fn u32_pair_to_u64(low: u32, high: u32) -> u64 {
-    return u64(low) | (u64(high) << 32u);
-}
-
 fn ROR(x: u64, n: u64) -> u64 { return u64(x >> u32(n)) | (x << (64 - u32(n))); }
 
 fn S0(x: u64) -> u64 { return (ROR(x, 28) ^ ROR(x, 34) ^ ROR(x, 39)); }
@@ -63,15 +58,15 @@ fn ROUND(i: u32, a: u64, b: u64, c: u64, d: u64, e: u64, f: u64, g: u64, h: u64,
     return array<u64, 2>(d2, h2);
 }
 
-fn store_be64(p: ptr<function, array<u32, SHA512_BLOCK_SIZE>>, x: u64, offset: u32) {
-    p[0 + offset] = u32((x >> 56) & 0xff);
-    p[1 + offset] = u32((x >> 48) & 0xff);
-    p[2 + offset] = u32((x >> 40) & 0xff);
-    p[3 + offset] = u32((x >> 32) & 0xff);
-    p[4 + offset] = u32((x >> 24) & 0xff);
-    p[5 + offset] = u32((x >> 16) & 0xff);
-    p[6 + offset] = u32((x >> 8) & 0xff);
-    p[7 + offset] = u32((x >> 0) & 0xff);
+fn store_be64(ctx: ptr<function, SHA512_CTX>, x: u64, offset: u32) {
+    (*ctx).buffer[0 + offset] = u32((x >> 56) & 0xff);
+    (*ctx).buffer[1 + offset] = u32((x >> 48) & 0xff);
+    (*ctx).buffer[2 + offset] = u32((x >> 40) & 0xff);
+    (*ctx).buffer[3 + offset] = u32((x >> 32) & 0xff);
+    (*ctx).buffer[4 + offset] = u32((x >> 24) & 0xff);
+    (*ctx).buffer[5 + offset] = u32((x >> 16) & 0xff);
+    (*ctx).buffer[6 + offset] = u32((x >> 8) & 0xff);
+    (*ctx).buffer[7 + offset] = u32((x >> 0) & 0xff);
 }
 
 fn store_be64_out(p: ptr<function, array<u32, SHA512_HASH_LENGTH>>, x: u64, offset: u32) {
@@ -85,92 +80,96 @@ fn store_be64_out(p: ptr<function, array<u32, SHA512_HASH_LENGTH>>, x: u64, offs
     p[7 + offset] = u32((x >> 0) & 0xff);
 }
 
-fn load_be64(p: ptr<function, array<u32, 128>>, offset: u32) -> u64 {
-    return (u64(p[0 + offset]) << 56) | (u64(p[1 + offset]) << 48) | (u64(p[2 + offset]) << 40) | (u64(p[3 + offset]) << 32) | (u64(p[4 + offset]) << 24) | (u64(p[5 + offset]) << 16) | (u64(p[6 + offset]) << 8) | (u64(p[7 + offset]));
+fn load_be64(ctx: ptr<function, SHA512_CTX>, offset: u32) -> u64 {
+    return (u64((*ctx).buffer[0 + offset]) << 56) | (u64((*ctx).buffer[1 + offset]) << 48) | (u64((*ctx).buffer[2 + offset]) << 40) | (u64((*ctx).buffer[3 + offset]) << 32) | (u64((*ctx).buffer[4 + offset]) << 24) | (u64((*ctx).buffer[5 + offset]) << 16) | (u64((*ctx).buffer[6 + offset]) << 8) | (u64((*ctx).buffer[7 + offset]));
 }
 
-fn compress(state: ptr<function, array<u64, 8>>, buf: ptr<function, array<u32, SHA512_BLOCK_SIZE>>, data_offset: u32) {
+fn compress(ctx: ptr<function, SHA512_CTX>, data_offset: u32) {
+    // state: ptr<function, array<u64, 8>>, buf: ptr<function, array<u32, SHA512_BLOCK_SIZE>>
+
     var W: array<u64, 80> = array<u64, 80>();
     var t: u64 = 0;
 
-    var a: u64 = state[0];
-    var b: u64 = state[1];
-    var c: u64 = state[2];
-    var d: u64 = state[3];
-    var e: u64 = state[4];
-    var f: u64 = state[5];
-    var g: u64 = state[6];
-    var h: u64 = state[7];
+    var a: u64 = (*ctx).state[0];
+    var b: u64 = (*ctx).state[1];
+    var c: u64 = (*ctx).state[2];
+    var d: u64 = (*ctx).state[3];
+    var e: u64 = (*ctx).state[4];
+    var f: u64 = (*ctx).state[5];
+    var g: u64 = (*ctx).state[6];
+    var h: u64 = (*ctx).state[7];
 
     for (var i = 0u; i < 16; i++) {
-        W[i] = load_be64(buf, u32(8u * i) + data_offset);
+        W[i] = load_be64(ctx, (8u * i) + data_offset);
     };
 
     for (var i = 16; i < 80; i++) {
         W[i] = W[i-16] + G0(W[i-15]) + W[i-7] + G1(W[i-2]);
     };
 
-    var rotate_res: array<u64, 2>;
+    for (var i = 0u; i < 80; i++) {
+        let T1 = h + S1(e) + ((e & f) ^ (~e & g)) + K[i] + W[i]; // SHA-512 Ch function: (e & f) ^ (~e & g)
+        let T2 = S0(a) + ((a & b) ^ (a & c) ^ (b & c)); // SHA-512 Maj function: (a & b) ^ (a & c) ^ (b & c)
 
-    for (var i = 0; i < 80; i += 8) {
-        rotate_res = ROUND(u32(i + 0), a, b, c, d, e, f, g, h, &W);
-        rotate_res = ROUND(u32(i + 1), rotate_res[1], a, b, c, rotate_res[0], e, f, g, &W);
-        rotate_res = ROUND(u32(i + 2), g, rotate_res[1], a, b, c, rotate_res[0], e, f, &W);
-        rotate_res = ROUND(u32(i + 3), f, g, rotate_res[1], a, b, c, rotate_res[0], e, &W);
-        rotate_res = ROUND(u32(i + 4), e, f, g, rotate_res[1], a, b, c, rotate_res[0], &W);
-        rotate_res = ROUND(u32(i + 5), rotate_res[0], e, f, g, rotate_res[1], a, b, c, &W);
-        rotate_res = ROUND(u32(i + 6), c, rotate_res[0], e, f, g, rotate_res[1], a, b, &W);
-        rotate_res = ROUND(u32(i + 7), b, c, rotate_res[0], e, f, g, rotate_res[1], a, &W);
+        h = g;
+        g = f;
+        f = e;
+        e = d + T1;
+        d = c;
+        c = b;
+        b = a;
+        a = T1 + T2;
     }
 
-    state[0] += a;
-    state[1] += b;
-    state[2] += c;
-    state[3] += rotate_res[0];
-    state[4] += e;
-    state[5] += f;
-    state[6] += g;
-    state[7] += rotate_res[1];
+    (*ctx).state[0] += a;
+    (*ctx).state[1] += b;
+    (*ctx).state[2] += c;
+    (*ctx).state[3] += d;
+    (*ctx).state[4] += e;
+    (*ctx).state[5] += f;
+    (*ctx).state[6] += g;
+    (*ctx).state[7] += h;
 }
 
 fn sha512_init(ctx: ptr<function, SHA512_CTX>) {
-    ctx.fill = 0;
-    ctx.count = 0;
+    (*ctx).fill = 0;
+    (*ctx).count = 0;
 
-    ctx.state[0] = 0x6a09e667f3bcc908;
-    ctx.state[1] = u32_pair_to_u64(0x0000000084caa73b, 0x00000000bb67ae85);
-    ctx.state[2] = 0x3c6ef372fe94f82b;
-    ctx.state[3] = u32_pair_to_u64(0x000000005f1d36f1, 0x00000000a54ff53a);
-    ctx.state[4] = 0x510e527fade682d1;
-    ctx.state[5] = u32_pair_to_u64(0x000000002b3e6c1f, 0x000000009b05688c);
-    ctx.state[6] = 0x1f83d9abfb41bd6b;
-    ctx.state[7] = 0x5be0cd19137e2179;
+    (*ctx).state[0] = 0x6a09e667f3bcc908lu;
+    (*ctx).state[1] = 0xbb67ae8584caa73blu;
+    (*ctx).state[2] = 0x3c6ef372fe94f82blu;
+    (*ctx).state[3] = 0xa54ff53a5f1d36f1lu;
+    (*ctx).state[4] = 0x510e527fade682d1lu;
+    (*ctx).state[5] = 0x9b05688c2b3e6c1flu;
+    (*ctx).state[6] = 0x1f83d9abfb41bd6blu;
+    (*ctx).state[7] = 0x5be0cd19137e2179lu;
 }
 
-fn sha512_update(ctx: ptr<function, SHA512_CTX>, data: ptr<function, array<u32, SHA512_MAX_UPDATE_SIZE>>, _len: u32) {
+// TODO: modify data to take a ptr<function> instead of copying data
+fn sha512_update(ctx: ptr<function, SHA512_CTX>, data: ptr<function, array<u32, SHA512_MAX_INPUT_SIZE>>, _len: u32) {
     var len = _len;
     var data_offset = 0u;
 
-    if ctx.fill > 0 {
-		// fill internal buffer up and compress
-        while ctx.fill < 128 && len > 0 {
-            ctx.buffer[ctx.fill] = data[data_offset];
+    if (*ctx).fill > 0 {
+		// fill internal buffer up and compact
+        while (*ctx).fill < 128 && len > 0 {
+            (*ctx).buffer[(*ctx).fill] = data[data_offset];
 
-            ctx.fill += 1;
-            data_offset ++;
+            (*ctx).fill += 1;
+            data_offset += 1;
             len -= 1;
         }
 
-        if ctx.fill < 128 { return; }
+        if (*ctx).fill < 128 { return; }
 
-        compress(&ctx.state, &ctx.buffer, data_offset);
-        ctx.count += 1;
+        compress(ctx, 0);
+        (*ctx).count += 1;
     }
 
 	// ctx->fill is now zero
     while len >= 128 {
-        compress(&ctx.state, &ctx.buffer, data_offset);
-        ctx.count ++;
+        compress(ctx, data_offset);
+        (*ctx).count ++;
 
         data_offset += 128;
         len -= 128;
@@ -178,40 +177,39 @@ fn sha512_update(ctx: ptr<function, SHA512_CTX>, data: ptr<function, array<u32, 
 
 	// save rest for next time
     for (var i = 0u; i < len; i ++) {
-        ctx.buffer[i] = data[i + data_offset];
+        (*ctx).buffer[i] = data[i + data_offset];
     };
 
-    ctx.fill = len;
+    (*ctx).fill = len;
 }
 
-fn sha512_done(ctx: ptr<function, SHA512_CTX>) -> array<u32, 64> {
+fn sha512_done(ctx: ptr<function, SHA512_CTX>) -> array<u32, SHA512_HASH_LENGTH> {
     var out: array<u32, SHA512_HASH_LENGTH> = array<u32, SHA512_HASH_LENGTH>();
-    var rest = u64(ctx.fill);
+    var rest = u64((*ctx).fill);
 
 	// TODO: I'm not so sure about this `ctx.buffer[ctx.fill++]` pattern
 	// append 1-bit to signal end of data
-    ctx.buffer[ctx.fill] = 0x80;
-    ctx.fill += 1;
+    (*ctx).buffer[(*ctx).fill] = 0x80;
+    (*ctx).fill += 1;
 
-    if ctx.fill > 112 {
-        while ctx.fill < 128 { ctx.buffer[ctx.fill] = 0; ctx.fill++; };
-        compress(&ctx.state, &ctx.buffer, 0);
-        ctx.fill = 0;
+    if (*ctx).fill > 112 {
+        while (*ctx).fill < 128 { (*ctx).buffer[(*ctx).fill] = 0; (*ctx).fill += 1; };
+        compress(ctx, 0);
+        (*ctx).fill = 0;
     }
 
-    while ctx.fill < 112 { ctx.buffer[ctx.fill] = 0; ctx.fill++;}
+    while (*ctx).fill < 112 { (*ctx).buffer[(*ctx).fill] = 0; (*ctx).fill++;}
 
 	// because rest < 128 our message length is
 	// L := 128*ctx->count + rest == (ctx->count<<7)|rest,
 	// now convert L to number of bits and write out as 128bit big-endian.
-    store_be64(&ctx.buffer, ctx.count >> 54, 112);
-    store_be64(&ctx.buffer, ((ctx.count << 7) | rest) << 3, 120);
+    store_be64(ctx, (*ctx).count >> 54, 112);
+    store_be64(ctx, (((*ctx).count << 7) | rest) << 3, 120);
 
-    compress(&ctx.state, &ctx.buffer, 0);
-
+    compress(ctx, 0);
 
     for (var i = 0u; i < 8; i++) {
-        store_be64_out(&out, ctx.state[i], 8 * i);
+        store_be64_out(&out, (*ctx).state[i], 8 * i);
     }
 
     return out;

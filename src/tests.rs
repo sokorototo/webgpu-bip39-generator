@@ -1,14 +1,17 @@
 use super::*;
+use sha2::Digest;
 use wgpu::util::DeviceExt;
 
 fn sha256(bytes: &[u8]) -> [u8; 32] {
-	let hash = bitcoin_hashes::Sha256::hash(bytes);
-	*hash.as_byte_array()
+	sha2::Sha256::digest(bytes).into()
 }
 
 fn sha512(bytes: &[u8]) -> [u8; 64] {
-	let hash = bitcoin_hashes::Sha512::hash(bytes);
-	*hash.as_byte_array()
+	sha2::Sha512::digest(bytes).into()
+}
+
+fn pbkdf2_hmac_sha512(bytes: &[u8]) -> [u8; 64] {
+	pbkdf2::pbkdf2_hmac_array::<sha2::Sha512, 64>(bytes, b"mnemonic", 2048)
 }
 
 #[test]
@@ -92,7 +95,9 @@ fn test_sha512() {
 	});
 
 	// init shader
-	let source = concat!(include_str!("shaders/sha512.wgsl"), "\n", include_str!("shaders/test_sha512.wgsl"));
+	let sources = ["src/shaders/sha512.wgsl", "src/shaders/pbkdf2_hmac.wgsl", "src/shaders/test_pbkdf2.wgsl"];
+	let source = sources.into_iter().fold(String::new(), |acc, nxt| acc + "\n" + &std::fs::read_to_string(nxt).unwrap());
+
 	let descriptor = wgpu::ShaderModuleDescriptor {
 		label: Some("test-sha512::main"),
 		source: wgpu::ShaderSource::Wgsl(source.into()),
@@ -195,9 +200,12 @@ fn test_sha512() {
 			let gpu_output = hash.map(|s| s as u8);
 			let cpu_output = sha512(data[idx].as_bytes());
 
-			// Display
-			println!("GPU = {}", hex::encode(gpu_output.as_slice()));
+			// test
+			println!("INPUT = {}", data[idx]);
 			println!("CPU = {}", hex::encode(cpu_output.as_slice()));
+			println!("GPU = {}\n", hex::encode(gpu_output.as_slice()));
+
+			assert_eq!(gpu_output, cpu_output, "HMAC Mismatch Between GPU and CPU",);
 		}
 	});
 

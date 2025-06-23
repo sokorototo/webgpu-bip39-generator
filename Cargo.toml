@@ -32,5 +32,6 @@ wgpu = { version = "25", default-features = false, features = [
 ] }
 
 [dev-dependencies]
-bitcoin_hashes = "0.16.0"
 hex = "0.4.3"
+pbkdf2 = { version = "0.12.2", features = ["sha2", "std"] }
+sha2 = "0.10.9"
