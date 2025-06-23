@@ -1,8 +1,19 @@
 use super::*;
+use wgpu::util::DeviceExt;
+
+fn sha256(bytes: &[u8]) -> [u8; 32] {
+	let hash = bitcoin_hashes::Sha256::hash(bytes);
+	*hash.as_byte_array()
+}
+
+fn sha512(bytes: &[u8]) -> [u8; 64] {
+	let hash = bitcoin_hashes::Sha512::hash(bytes);
+	*hash.as_byte_array()
+}
 
 #[test]
 fn test_checksum_filtering() {
-	pub(crate) fn handle_results(constants: &solver::types::PushConstants, addresses: &[solver::types::P2PKH_Address]) {
+	pub(crate) fn verify_results(constants: &solver::types::PushConstants, addresses: &[solver::types::P2PKH_Address]) {
 		// verifies output from solver
 		let mut set = std::collections::BTreeSet::new();
 
@@ -14,7 +25,7 @@ fn test_checksum_filtering() {
 			let bytes: &[u8] = bytemuck::cast_slice(&input);
 
 			let result = [address[4], address[5], address[6], address[7]].map(|s| s as u8);
-			let expected = sha256_rs::sha256(bytes);
+			let expected = sha256(bytes);
 
 			assert_eq!(&result, &expected[..4], "Got Different Hash from Shader");
 			assert!(result[0] & constants.checksum as u8 == result[0], "Got Different Checksum from Shader");
@@ -33,5 +44,163 @@ fn test_checksum_filtering() {
 		address: parse_address("1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa").unwrap(),
 	};
 
-	solver::solve(&config, &device, &queue, handle_results);
+	solver::solve(&config, &device, &queue, verify_results);
+}
+
+#[test]
+fn test_sha512() {
+	const INPUTS: usize = 4;
+
+	#[repr(C)]
+	#[derive(Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+	struct Input {
+		data: [u32; 256],
+		len: u32,
+	}
+
+	// prepare test data
+	let data: [_; INPUTS] = ["hello, world!", "abc", "", "boy"];
+
+	// create inputs
+	let inputs = data.map(|input| {
+		let mut target = [0u8; 256];
+		let source = input.as_bytes();
+
+		target[..source.len()].copy_from_slice(source);
+
+		Input {
+			data: target.map(|b| b as u32),
+			len: source.len() as u32,
+		}
+	});
+
+	// create device
+	let (device, queue) = pollster::block_on(device::init());
+
+	// prepare layout descriptor
+	let inputs_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+		label: Some("test-sha512::inputs"),
+		contents: bytemuck::cast_slice(&inputs),
+		usage: wgpu::BufferUsages::STORAGE,
+	});
+
+	let output_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+		label: Some("test-sha512::output"),
+		size: (std::mem::size_of::<[u32; 64]>() * INPUTS) as u64,
+		usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::MAP_READ,
+		mapped_at_creation: false,
+	});
+
+	// init shader
+	let source = concat!(include_str!("shaders/sha512.wgsl"), "\n", include_str!("shaders/test_sha512.wgsl"));
+	let descriptor = wgpu::ShaderModuleDescriptor {
+		label: Some("test-sha512::main"),
+		source: wgpu::ShaderSource::Wgsl(source.into()),
+	};
+
+	let shader = device.create_shader_module(descriptor);
+
+	// configure bind group layout
+	let descriptor = wgpu::BindGroupLayoutDescriptor {
+		label: Some("test-sha512::bind-group-layout"),
+		entries: &[
+			wgpu::BindGroupLayoutEntry {
+				binding: 0,
+				visibility: wgpu::ShaderStages::COMPUTE,
+				ty: wgpu::BindingType::Buffer {
+					ty: wgpu::BufferBindingType::Storage { read_only: true },
+					has_dynamic_offset: false,
+					min_binding_size: None,
+				},
+				count: None,
+			},
+			wgpu::BindGroupLayoutEntry {
+				binding: 1,
+				visibility: wgpu::ShaderStages::COMPUTE,
+				ty: wgpu::BindingType::Buffer {
+					ty: wgpu::BufferBindingType::Storage { read_only: false },
+					has_dynamic_offset: false,
+					min_binding_size: None,
+				},
+				count: None,
+			},
+		],
+	};
+
+	let bind_group_layout = device.create_bind_group_layout(&descriptor);
+
+	// configure bind groups
+	let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+		label: Some("test-sha512::bind_group"),
+		layout: &bind_group_layout,
+		entries: &[
+			wgpu::BindGroupEntry {
+				binding: 0,
+				resource: inputs_buffer.as_entire_binding(),
+			},
+			wgpu::BindGroupEntry {
+				binding: 1,
+				resource: output_buffer.as_entire_binding(),
+			},
+		],
+	});
+
+	// configure pipeline layout
+	let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+		label: Some("test-sha512::pipeline-layout"),
+		bind_group_layouts: &[&bind_group_layout],
+		push_constant_ranges: &[],
+	});
+
+	// create compute pipeline
+	let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+		label: Some("test-sha512::pipeline"),
+		module: &shader,
+		entry_point: Some("main"),
+		layout: Some(&pipeline_layout),
+		// defaults
+		cache: None,
+		compilation_options: Default::default(),
+	});
+
+	// create command encoder
+	let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("solver::encoder") });
+
+	{
+		// queue dispatch commands
+		let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+			label: Some("test-sha512::pass"),
+			timestamp_writes: None,
+		});
+
+		pass.set_pipeline(&pipeline);
+		pass.set_bind_group(0, &bind_group, &[]);
+
+		// calculate dimensions of dispatch
+		pass.dispatch_workgroups(INPUTS as _, 1, 1);
+	}
+
+	// submit commands
+	let commands = encoder.finish();
+	queue.submit([commands]);
+
+	// read outputs buffer
+	output_buffer.clone().map_async(wgpu::MapMode::Read, .., move |res| {
+		res.unwrap();
+
+		let view = output_buffer.get_mapped_range(..);
+		let cast: &[[u32; 64]] = bytemuck::cast_slice(view.as_ref());
+
+		for (idx, hash) in cast.iter().enumerate() {
+			let gpu_output = hash.map(|s| s as u8);
+			let cpu_output = sha512(data[idx].as_bytes());
+
+			// Display
+			println!("GPU = {}", hex::encode(gpu_output.as_slice()));
+			println!("CPU = {}", hex::encode(cpu_output.as_slice()));
+		}
+	});
+
+	// wait for tasks to finish
+	device.poll(wgpu::PollType::Wait).unwrap();
 }

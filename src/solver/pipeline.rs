@@ -115,7 +115,7 @@ pub(crate) fn create(device: &wgpu::Device, config: &crate::Config) -> State {
 
 	// create compute pipeline
 	let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-		label: Some("test-filter::pipeline"),
+		label: Some("solver::pipeline"),
 		module: &shader,
 		entry_point: Some("main"),
 		layout: Some(&pipeline_layout),
