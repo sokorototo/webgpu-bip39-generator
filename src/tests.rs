@@ -103,12 +103,10 @@ fn test_sha512() {
 	let sources = ["src/shaders/sha512.wgsl", "src/shaders/pbkdf2.wgsl", "src/shaders/test_pbkdf2.wgsl"];
 	let source = sources.into_iter().fold(String::new(), |acc, nxt| acc + "\n" + &std::fs::read_to_string(nxt).unwrap());
 
-	let descriptor = wgpu::ShaderModuleDescriptor {
+	let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
 		label: Some("test-sha512::main"),
 		source: wgpu::ShaderSource::Wgsl(source.into()),
-	};
-
-	let shader = device.create_shader_module(descriptor);
+	});
 
 	// configure bind group layout
 	let descriptor = wgpu::BindGroupLayoutDescriptor {
