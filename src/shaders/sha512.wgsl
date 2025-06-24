@@ -1,6 +1,7 @@
 const SHA512_BLOCK_SIZE	= 128;
 const SHA512_HASH_LENGTH = 64;
 
+// TODO: Might reduce to 128 to take advantage of certain optimizations in `pbkdf2_hmac_sha512`
 const SHA512_MAX_INPUT_SIZE = 256;
 
 struct SHA512_CTX {

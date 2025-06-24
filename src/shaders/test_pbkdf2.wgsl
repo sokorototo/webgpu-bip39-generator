@@ -20,22 +20,14 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
         data[i] = input.data[i];
     }
 
-	// // "mnemonic"
-    // var mnemonic = array<u32, 8>(109, 110, 101, 109, 111, 110, 105, 99);
-    // var salt = array<u32, PBKDF2_HMAC_SALT_LEN>();
+	// b"mnemonic"
+    var mnemonic = array<u32, 8>(109, 110, 101, 109, 111, 110, 105, 99);
+    var salt = array<u32, PBKDF2_HMAC_SALT_LEN>();
 
-    // for (var i = 0; i < 8; i++) {
-    //     salt[i] = mnemonic[i];
-    // }
+    for (var i = 0; i < 8; i++) {
+        salt[i] = mnemonic[i];
+    }
 
-    // // poop output
-    // output[id.x] = pbkdf2_hmac_sha512(&data, input.len, &salt, 8, 2048);
-
-
-	// hash
-    sha512_init(&ctx);
-    sha512_update(&ctx, &data, input.len);
-
-    var hash = sha512_done(&ctx);
-    output[id.x] = hash;
+    // poop output
+    output[id.x] = pbkdf2_hmac_sha512(&data, input.len, &salt, 8, 2048);
 }
