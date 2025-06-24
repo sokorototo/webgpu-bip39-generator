@@ -1,20 +1,10 @@
-const PBKDF2_HMAC_SALT_LEN = 32;
-
 const HLEN = 64;
 const IPAD = 0x36u;
 const OPAD = 0x5cu;
-const BS = 64;
-
-fn htobe32(x: u32) -> u32 {
-    let b0 = (x >> 24) & 0x000000FFu;
-    let b1 = (x >> 8) & 0x0000FF00u;
-    let b2 = (x << 8) & 0x00FF0000u;
-    let b3 = (x << 24) & 0xFF000000u;
-    return b0 | b1 | b2 | b3;
-}
+const BS = 128;
 
 // TODO: Maybe pass key by reference?
-fn hmac_sha512_init(ctx: ptr<function, SHA512_CTX>, key: array<u32, BS>) {
+fn hmac_sha512_init(ctx: ptr<function, SHA512_CTX>, key: ptr<function, array<u32, BS>>) {
     var pad = array<u32, SHA512_MAX_INPUT_SIZE>();
 
     // apply inner padding
@@ -27,7 +17,7 @@ fn hmac_sha512_init(ctx: ptr<function, SHA512_CTX>, key: array<u32, BS>) {
     sha512_update(ctx, &pad, BS);
 }
 
-fn hmac_sha512_done(ctx: ptr<function, SHA512_CTX>, key: array<u32, BS>, result: ptr<function, array<u32, HLEN>>) {
+fn hmac_sha512_done(ctx: ptr<function, SHA512_CTX>, key: ptr<function, array<u32, BS>>, result: ptr<function, array<u32, HLEN>>) {
     var pad = array<u32, SHA512_MAX_INPUT_SIZE>();
 
    //  construct outer padding
@@ -51,34 +41,20 @@ fn hmac_sha512_done(ctx: ptr<function, SHA512_CTX>, key: array<u32, BS>, result:
 }
 
 // We know salt is "mnemonic" LOL
-fn pbkdf2_hmac_sha512(passwd: ptr<function, array<u32, SHA512_MAX_INPUT_SIZE>>, passlen: u32, salt: ptr<function, array<u32, PBKDF2_HMAC_SALT_LEN>>, saltlen: u32, iter: u32) -> array<u32, HLEN> {
-    var hmac: SHA512_CTX;
-    var key = array<u32, BS>();
+fn pbkdf2(passwd: ptr<function, array<u32, SHA512_MAX_INPUT_SIZE>>, passlen: u32, salt: ptr<function, array<u32, SHA512_MAX_INPUT_SIZE>>, saltlen: u32, iter: u32) -> array<u32, HLEN> {
+	var hmac: SHA512_CTX;
+	// passlen <= 128 always, and passwd is zero delimited
+	let key = passwd;
 
-	 // vartime code to handle password hmac - style
-    if passlen < BS {
-        for (var i = 0u; i < passlen; i++) {
-            key[i] = passwd[i];
-        }
-    } else {
-        sha512_init(&hmac);
-        sha512_update(&hmac, passwd, passlen);
-        key = sha512_done(&hmac);
-    }
+    hmac_sha512_init(&hmac, key);
+    sha512_update(&hmac, salt, saltlen);
 
 	 // for preparing data to be hashed by sha512
     var scratch = array<u32, SHA512_MAX_INPUT_SIZE>();
 
-    for (var i = 0u; i <= saltlen; i++) {
-        scratch[i] = salt[i];
-    }
-
-    hmac_sha512_init(&hmac, key);
-    sha512_update(&hmac, &scratch, saltlen);
-
      // copy be32i into scratch and update hmac_state
     var be32i_bytes = array<u32, 4>(0u, 0u, 0u, 1u);
-    for (var i = 0; i <= 4; i++) {
+    for (var i = 0; i < 4; i++) {
         scratch[i] = be32i_bytes[i];
     }
 
@@ -91,10 +67,10 @@ fn pbkdf2_hmac_sha512(passwd: ptr<function, array<u32, SHA512_MAX_INPUT_SIZE>>, 
 
     F = U;
 
-    for (var j = 2u; j <= iter; j++) {
+    for (var j = 1u; j < iter; j++) {
         hmac_sha512_init(&hmac, key);
 
-        for (var i = 0u; i <= HLEN; i++) {
+        for (var i = 0u; i < HLEN; i++) {
             scratch[i] = U[i];
         }
 

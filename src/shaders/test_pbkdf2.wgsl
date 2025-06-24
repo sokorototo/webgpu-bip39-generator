@@ -7,11 +7,10 @@ struct Input {
 };
 
 @group(0) @binding(0) var<storage, read> inputs: array<Input, INPUTS>;
-@group(0) @binding(1) var<storage, read_write> output: array<array<u32, 64>, INPUTS>;
+@group(0) @binding(1) var<storage, read_write> output: array<array<u32, SHA512_HASH_LENGTH>, INPUTS>;
 
 @compute @workgroup_size(INPUTS)
 fn main(@builtin(global_invocation_id) id: vec3<u32>) {
-    var ctx: SHA512_CTX;
     var input = inputs[id.x];
 
     // copy data to function storage
@@ -22,12 +21,12 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
 
 	// b"mnemonic"
     var mnemonic = array<u32, 8>(109, 110, 101, 109, 111, 110, 105, 99);
-    var salt = array<u32, PBKDF2_HMAC_SALT_LEN>();
+    var salt = array<u32, SHA512_MAX_INPUT_SIZE>();
 
     for (var i = 0; i < 8; i++) {
         salt[i] = mnemonic[i];
     }
 
     // poop output
-    output[id.x] = pbkdf2_hmac_sha512(&data, input.len, &salt, 8, 2048);
+    output[id.x] = pbkdf2(&data, input.len, &salt, 8, 2048);
 }

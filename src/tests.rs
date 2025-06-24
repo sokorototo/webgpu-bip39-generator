@@ -56,7 +56,8 @@ fn test_checksum_filtering() {
 #[test]
 fn test_sha512() {
 	const INPUTS: usize = 4;
-	const SHA512_MAX_INPUT_SIZE: usize = 256;
+	const SHA512_MAX_INPUT_SIZE: usize = 128;
+	const SHA512_HASH_LENGTH: usize = 64;
 
 	#[repr(C)]
 	#[derive(Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
@@ -66,7 +67,7 @@ fn test_sha512() {
 	}
 
 	// prepare test data
-	let data: [_; INPUTS] = ["hello, world!", "abc", "", "boy"];
+	let data: [_; INPUTS] = ["", "password", "setup arrange elevator foam jelly word wire either other oblige cupboard almost", "jellyfish"];
 
 	// create inputs
 	let inputs = data.map(|input| {
@@ -93,7 +94,7 @@ fn test_sha512() {
 
 	let output_buffer = device.create_buffer(&wgpu::BufferDescriptor {
 		label: Some("test-sha512::output"),
-		size: (std::mem::size_of::<[u32; 64]>() * INPUTS) as u64,
+		size: (std::mem::size_of::<[u32; SHA512_HASH_LENGTH]>() * INPUTS) as u64,
 		usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::MAP_READ,
 		mapped_at_creation: false,
 	});
@@ -198,7 +199,7 @@ fn test_sha512() {
 		res.unwrap();
 
 		let view = output_buffer.get_mapped_range(..);
-		let cast: &[[u32; 64]] = bytemuck::cast_slice(view.as_ref());
+		let cast: &[[u32; SHA512_HASH_LENGTH]] = bytemuck::cast_slice(view.as_ref());
 
 		for (idx, hash) in cast.iter().enumerate() {
 			let gpu_output = hash.map(|s| s as u8);
@@ -209,7 +210,7 @@ fn test_sha512() {
 			println!(" CPU = {}", hex::encode(cpu_output.as_slice()));
 			println!(" GPU = {}\n", hex::encode(gpu_output.as_slice()));
 
-			// assert_eq!(gpu_output, cpu_output, "HMAC Mismatch Between GPU and CPU",);
+			assert_eq!(gpu_output, cpu_output, "HMAC Mismatch Between GPU and CPU",);
 		}
 	});
 
