@@ -3,7 +3,6 @@ const IPAD = 0x36u;
 const OPAD = 0x5cu;
 const BS = 128;
 
-// TODO: Maybe pass key by reference?
 fn hmac_sha512_init(ctx: ptr<function, SHA512_CTX>, key: ptr<function, array<u32, BS>>) {
     var pad = array<u32, SHA512_MAX_INPUT_SIZE>();
 
@@ -17,7 +16,7 @@ fn hmac_sha512_init(ctx: ptr<function, SHA512_CTX>, key: ptr<function, array<u32
     sha512_update(ctx, &pad, BS);
 }
 
-fn hmac_sha512_done(ctx: ptr<function, SHA512_CTX>, key: ptr<function, array<u32, BS>>, result: ptr<function, array<u32, HLEN>>) {
+fn hmac_sha512_done(ctx: ptr<function, SHA512_CTX>, key: ptr<function, array<u32, BS>>) -> array<u32, HLEN> {
     var pad = array<u32, SHA512_MAX_INPUT_SIZE>();
 
    //  construct outer padding
@@ -26,7 +25,7 @@ fn hmac_sha512_done(ctx: ptr<function, SHA512_CTX>, key: ptr<function, array<u32
     }
 
     // finalize inner hash
-    var ihash: array<u32, HLEN> = sha512_done(ctx);
+    var ihash = sha512_done(ctx);
 
     sha512_init(ctx);
     sha512_update(ctx, &pad, BS);
@@ -37,48 +36,56 @@ fn hmac_sha512_done(ctx: ptr<function, SHA512_CTX>, key: ptr<function, array<u32
     }
     sha512_update(ctx, &pad, HLEN);
 
-    *result = sha512_done(ctx);
+    return sha512_done(ctx);
 }
 
 // We know salt is "mnemonic" LOL
 fn pbkdf2(passwd: ptr<function, array<u32, SHA512_MAX_INPUT_SIZE>>, passlen: u32, salt: ptr<function, array<u32, SHA512_MAX_INPUT_SIZE>>, saltlen: u32, iter: u32) -> array<u32, HLEN> {
-	var hmac: SHA512_CTX;
-	// passlen <= 128 always, and passwd is zero delimited
-	let key = passwd;
+    // cache hmac-state
+    var cached: SHA512_CTX;
+    hmac_sha512_init(&cached, passwd);
 
-    hmac_sha512_init(&hmac, key);
+    // bleh bleh bleh
+    var hmac: SHA512_CTX;
+    let key = passwd;
+
+    hmac = cached;
     sha512_update(&hmac, salt, saltlen);
 
-	 // for preparing data to be hashed by sha512
+	// for preparing data to be hashed by sha512
     var scratch = array<u32, SHA512_MAX_INPUT_SIZE>();
 
-     // copy be32i into scratch and update hmac_state
+    // copy be32i into scratch and update hmac_state
     var be32i_bytes = array<u32, 4>(0u, 0u, 0u, 1u);
     for (var i = 0; i < 4; i++) {
         scratch[i] = be32i_bytes[i];
     }
 
-	 // start digest
-    var F = array<u32, HLEN>();
-    var U = array<u32, HLEN>();
-
     sha512_update(&hmac, &scratch, 4);
-    hmac_sha512_done(&hmac, key, &U);
 
-    F = U;
+    // start digest
+    var U = hmac_sha512_done(&hmac, key);
+    var F = U;
 
     for (var j = 1u; j < iter; j++) {
-        hmac_sha512_init(&hmac, key);
+        hmac = cached;
 
         for (var i = 0u; i < HLEN; i++) {
             scratch[i] = U[i];
         }
 
         sha512_update(&hmac, &scratch, HLEN);
-        hmac_sha512_done(&hmac, key, &U);
+        U = hmac_sha512_done(&hmac, key);
 
-        for (var k = 0u; k < HLEN; k++) {
+        for (var k = 0u; k < HLEN; k += 8) {
             F[k] ^= U[k];
+            F[k + 1] ^= U[k + 1];
+            F[k + 2] ^= U[k + 2];
+            F[k + 3] ^= U[k + 3];
+            F[k + 4] ^= U[k + 4];
+            F[k + 5] ^= U[k + 5];
+            F[k + 6] ^= U[k + 6];
+            F[k + 7] ^= U[k + 7];
         }
     }
 

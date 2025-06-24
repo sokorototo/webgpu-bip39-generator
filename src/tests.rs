@@ -192,10 +192,12 @@ fn test_sha512() {
 
 	// submit commands
 	let commands = encoder.finish();
+	let then = std::time::Instant::now();
 	queue.submit([commands]);
 
 	// read outputs buffer
 	output_buffer.clone().map_async(wgpu::MapMode::Read, .., move |res| {
+		println!("Took: {:?} \n", then.elapsed() / 4);
 		res.unwrap();
 
 		let view = output_buffer.get_mapped_range(..);

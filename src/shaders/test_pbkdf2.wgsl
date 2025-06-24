@@ -14,10 +14,7 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
     var input = inputs[id.x];
 
     // copy data to function storage
-    var data = array<u32, SHA512_MAX_INPUT_SIZE>();
-    for (var i = 0u; i < input.len; i++) {
-        data[i] = input.data[i];
-    }
+    var data = input.data;
 
 	// b"mnemonic"
     var mnemonic = array<u32, 8>(109, 110, 101, 109, 111, 110, 105, 99);
