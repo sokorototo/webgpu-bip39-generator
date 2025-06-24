@@ -100,7 +100,7 @@ fn test_sha512() {
 	});
 
 	// init shader
-	let sources = ["src/shaders/sha512.wgsl", "src/shaders/pbkdf2_hmac.wgsl", "src/shaders/test_pbkdf2.wgsl"];
+	let sources = ["src/shaders/sha512.wgsl", "src/shaders/pbkdf2.wgsl", "src/shaders/test_pbkdf2.wgsl"];
 	let source = sources.into_iter().fold(String::new(), |acc, nxt| acc + "\n" + &std::fs::read_to_string(nxt).unwrap());
 
 	let descriptor = wgpu::ShaderModuleDescriptor {
