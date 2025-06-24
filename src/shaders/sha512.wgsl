@@ -1,8 +1,7 @@
 const SHA512_BLOCK_SIZE	= 128;
 const SHA512_HASH_LENGTH = 64;
 
-// TODO: Might reduce to 128 to take advantage of certain optimizations in `pbkdf2_hmac_sha512`
-const SHA512_MAX_INPUT_SIZE = 256;
+const SHA512_MAX_INPUT_SIZE = 128;
 
 struct SHA512_CTX {
     state: array<u64, 8>,
@@ -86,8 +85,6 @@ fn load_be64(ctx: ptr<function, SHA512_CTX>, offset: u32) -> u64 {
 }
 
 fn compress(ctx: ptr<function, SHA512_CTX>, data_offset: u32) {
-    // state: ptr<function, array<u64, 8>>, buf: ptr<function, array<u32, SHA512_BLOCK_SIZE>>
-
     var W: array<u64, 80> = array<u64, 80>();
     var t: u64 = 0;
 
@@ -109,8 +106,8 @@ fn compress(ctx: ptr<function, SHA512_CTX>, data_offset: u32) {
     };
 
     for (var i = 0u; i < 80; i++) {
-        let T1 = h + S1(e) + ((e & f) ^ (~e & g)) + K[i] + W[i]; // SHA-512 Ch function: (e & f) ^ (~e & g)
-        let T2 = S0(a) + ((a & b) ^ (a & c) ^ (b & c)); // SHA-512 Maj function: (a & b) ^ (a & c) ^ (b & c)
+        let T1 = h + S1(e) + ((e & f) ^ (~e & g)) + K[i] + W[i];
+        let T2 = S0(a) + ((a & b) ^ (a & c) ^ (b & c));
 
         h = g;
         g = f;
@@ -188,7 +185,6 @@ fn sha512_done(ctx: ptr<function, SHA512_CTX>) -> array<u32, SHA512_HASH_LENGTH>
     var out: array<u32, SHA512_HASH_LENGTH> = array<u32, SHA512_HASH_LENGTH>();
     var rest = u64((*ctx).fill);
 
-	// TODO: I'm not so sure about this `ctx.buffer[ctx.fill++]` pattern
 	// append 1-bit to signal end of data
     (*ctx).buffer[(*ctx).fill] = 0x80;
     (*ctx).fill += 1;
@@ -214,4 +210,12 @@ fn sha512_done(ctx: ptr<function, SHA512_CTX>) -> array<u32, SHA512_HASH_LENGTH>
     }
 
     return out;
+}
+
+fn sha512(data: ptr<function, array<u32, SHA512_MAX_INPUT_SIZE>>, len: u32) -> array<u32, SHA512_HASH_LENGTH> {
+  var ctx: SHA512_CTX;
+
+  sha512_init(&ctx);
+  sha512_update(&ctx, data, len);
+  return sha512_done(&ctx);
 }
