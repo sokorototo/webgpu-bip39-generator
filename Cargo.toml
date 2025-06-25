@@ -8,7 +8,6 @@ argh = "0.1"
 bytemuck = "1"
 pollster = { version = "0.4", features = ["macro"], default-features = false }
 bip39 = "2"
-oneshot = { version = "0.1", features = ["std"], default-features = false }
 base58 = "0.2"
 
 [target.'cfg(target_os = "windows")'.dependencies]

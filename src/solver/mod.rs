@@ -25,8 +25,8 @@ pub(crate) fn stencil_to_constants<'a, I: Iterator<Item = &'a str>>(words: I) ->
 
 	types::PushConstants {
 		words,
-		entropy: 0,
 		checksum: mnemonic.checksum() as _,
+		entropy: 0,
 	}
 }
 
@@ -125,6 +125,8 @@ pub(crate) fn solve<F: Fn(&types::PushConstants, &[types::P2PKH_Address]) + Send
 				if count == 0 {
 					continue;
 				}
+
+				// TODO: insert secondary pass here, use dispatch_indirect to avoid CPU sync of counter
 
 				if count >= MAX_RESULTS_FOUND as _ {
 					panic!("More than {} results found", MAX_RESULTS_FOUND);

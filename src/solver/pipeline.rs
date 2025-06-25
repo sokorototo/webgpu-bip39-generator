@@ -35,8 +35,14 @@ pub(crate) fn create(device: &wgpu::Device, config: &crate::Config) -> State {
 		contents: bytemuck::cast_slice(&config.address),
 	});
 
-	// init shader
-	let source = concat!(include_str!("../shaders/short256.wgsl"), "\n", include_str!("../shaders/main.wgsl"));
+	// compile shader
+	let source = concat!(
+		include_str!("../shaders/short256.wgsl"),
+		include_str!("../shaders/sha512.wgsl"),
+		include_str!("../shaders/pbkdf2.wgsl"),
+		include_str!("../shaders/main.wgsl")
+	);
+
 	let descriptor = wgpu::ShaderModuleDescriptor {
 		label: Some("solver::main"),
 		source: wgpu::ShaderSource::Wgsl(source.into()),
