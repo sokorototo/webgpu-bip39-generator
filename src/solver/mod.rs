@@ -1,14 +1,10 @@
 use std::sync;
 
-pub(crate) mod pipeline;
+pub(crate) mod passes;
 pub(crate) mod types;
 
-pub(crate) const WORKGROUP_SIZE: u32 = 64; // 2 ^ 6
-pub(crate) const DISPATCH_SIZE_X: u32 = 256; // 2 ^ 8
-pub(crate) const DISPATCH_SIZE_Y: u32 = 256; // 2 ^ 8
-
 // 2 ^ 22 = 4194304
-pub(crate) const THREADS_PER_DISPATCH: u32 = WORKGROUP_SIZE * DISPATCH_SIZE_X * DISPATCH_SIZE_Y;
+pub(crate) const THREADS_PER_DISPATCH: u32 = 4194304; // WORKGROUP_SIZE * DISPATCH_SIZE_X * DISPATCH_SIZE_Y
 
 pub(crate) const MAX_RESULTS_FOUND: usize = 65536; // ≈ 2 ^ 16
 
@@ -35,18 +31,12 @@ pub(crate) fn solve<F: Fn(&types::PushConstants, &[types::P2PKH_Address]) + Send
 	// initialize callback
 	let callback = sync::Arc::new(callback);
 
-	// initialize pipeline
+	// initialize passes
 	let mut constants = stencil_to_constants(config.stencil.iter().map(|s| s.as_str()));
-	let pipeline::State {
-		pipeline,
-		bind_group,
-		results_source,
-		count_buffer,
-		target_buffer,
-	} = pipeline::create(device, config);
+	let filter_pass = passes::filter_pass(device);
 
 	// init buffers
-	let results_destination = device.create_buffer(&wgpu::BufferDescriptor {
+	let entropies_destination = device.create_buffer(&wgpu::BufferDescriptor {
 		label: Some("solver::results-destination"),
 		size: (std::mem::size_of::<[types::P2PKH_Address; MAX_RESULTS_FOUND]>()) as wgpu::BufferAddress,
 		usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
@@ -63,31 +53,33 @@ pub(crate) fn solve<F: Fn(&types::PushConstants, &[types::P2PKH_Address]) + Send
 		let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("solver::encoder") });
 
 		{
-			// queue dispatch commands
+			// queue filter pass
 			let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-				label: Some("solver::pass"),
+				label: Some("filter::pass"),
 				timestamp_writes: None,
 			});
 
-			pass.set_pipeline(&pipeline);
-			pass.set_bind_group(0, &bind_group, &[]);
+			pass.set_pipeline(&filter_pass.pipeline);
+			pass.set_bind_group(0, &filter_pass.bind_group, &[]);
 			pass.set_push_constants(0, bytemuck::cast_slice(&[constants]));
 
 			// calculate dimensions of dispatch
 			let threads = (config.range.1 - step).min(THREADS_PER_DISPATCH as _);
-			let dispatch = (threads / WORKGROUP_SIZE as u64).max(1) as u32;
+			let dispatch = ((threads as u32 + passes::FilterPass::WORKGROUP_SIZE - 1) / passes::FilterPass::WORKGROUP_SIZE).max(1);
 
-			pass.dispatch_workgroups(DISPATCH_SIZE_X.min(dispatch), (dispatch / DISPATCH_SIZE_Y).max(1), 1);
+			pass.dispatch_workgroups(passes::FilterPass::DISPATCH_SIZE_X.min(dispatch), (dispatch / passes::FilterPass::DISPATCH_SIZE_Y).max(1), 1);
 		}
 
+		// TODO: insert secondary pass here, use dispatch_indirect to avoid CPU sync of counter and output entropies
+
 		{
-			// queue copy commands
+			// queue read results from derivation pass
 			encoder.copy_buffer_to_buffer(
-				&results_source,
+				&filter_pass.entropies_buffer,
 				0,
-				&results_destination,
+				&entropies_destination,
 				0,
-				(std::mem::size_of::<[types::P2PKH_Address; MAX_RESULTS_FOUND]>()) as wgpu::BufferAddress,
+				(std::mem::size_of::<[types::Entropy; MAX_RESULTS_FOUND]>()) as wgpu::BufferAddress,
 			);
 		}
 
@@ -97,10 +89,10 @@ pub(crate) fn solve<F: Fn(&types::PushConstants, &[types::P2PKH_Address]) + Send
 
 		// wait for results_destination to be ready
 		let (count_send, count_recv) = sync::mpsc::sync_channel(1);
-		let _count_buffer = count_buffer.clone();
+		let _count_buffer = filter_pass.count_buffer.clone();
 
 		// reset count buffer
-		count_buffer.map_async(wgpu::MapMode::Write, .., move |res| match res {
+		filter_pass.count_buffer.map_async(wgpu::MapMode::Write, .., move |res| match res {
 			Ok(_) => {
 				let mut range = _count_buffer.get_mapped_range_mut(..);
 				let bytes: &mut [u32] = bytemuck::cast_slice_mut(range.as_mut());
@@ -120,38 +112,27 @@ pub(crate) fn solve<F: Fn(&types::PushConstants, &[types::P2PKH_Address]) + Send
 		device.poll(wgpu::PollType::Wait).unwrap();
 
 		// read results_destination copy buffer
-		match count_recv.recv() {
-			Ok(count) => {
-				if count == 0 {
-					continue;
-				}
+		let count = count_recv.recv().expect("Unable to acquire count from buffer");
 
-				// TODO: insert secondary pass here, use dispatch_indirect to avoid CPU sync of counter
-
-				if count >= MAX_RESULTS_FOUND as _ {
-					panic!("More than {} results found", MAX_RESULTS_FOUND);
-				}
-
-				// map results_destination
-				let _results_destination = results_destination.clone();
-				let _callback = callback.clone();
-
-				results_destination.map_async(wgpu::MapMode::Read, .., move |res| {
-					let mut range = _results_destination.get_mapped_range(..);
-
-					let results: &[types::P2PKH_Address] = bytemuck::cast_slice(range.as_ref());
-					_callback(&constants, &results[..count as _]);
-
-					drop(range);
-					_results_destination.unmap();
-				});
-
-				// wait for callback to finish
-				device.poll(wgpu::PollType::Wait).unwrap();
-			}
-			Err(err) => {
-				eprintln!("Unable to acquire count from buffer: {}", err);
-			}
+		if count >= MAX_RESULTS_FOUND as _ {
+			// panic!("More than {} results found: {}", MAX_RESULTS_FOUND, count);
 		}
+
+		// map results_destination
+		let _results_destination = entropies_destination.clone();
+		let _callback = callback.clone();
+
+		entropies_destination.map_async(wgpu::MapMode::Read, .., move |res| {
+			let mut range = _results_destination.get_mapped_range(..);
+
+			let results: &[types::P2PKH_Address] = bytemuck::cast_slice(range.as_ref());
+			_callback(&constants, &results[..(count as usize)]);
+
+			drop(range);
+			_results_destination.unmap();
+		});
+
+		// wait for callback to finish
+		device.poll(wgpu::PollType::Wait).unwrap();
 	}
 }

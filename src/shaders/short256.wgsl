@@ -124,8 +124,7 @@ fn short256_update(ctx: ptr<function, SHA256_CTX>, input: array<u32, BYTES_COUNT
     }
 }
 
-fn short256_final(ctx: ptr<function, SHA256_CTX>) -> array<u32, 4> {
-    var hash: array<u32, 4>;
+fn short256_final(ctx: ptr<function, SHA256_CTX>) -> u32 {
     var i: u32 = (*ctx).datalen;
 
     if (*ctx).datalen < 56 {
@@ -167,18 +166,13 @@ fn short256_final(ctx: ptr<function, SHA256_CTX>) -> array<u32, 4> {
 
     short256_transform(ctx);
 
-    for (i = 0; i < 4; i++) {
-        hash[i] = ((*ctx).state[0] >> (24 - i * 8)) & 0x000000ff;
-        // *SNIP*
-    }
-
-    return hash;
+    return ((*ctx).state[0] >> (24 - i * 8)) & 0x000000ff;
 }
 
 // shortened sha256. Only returns the first 4 bytes of a normal sha256 digest
 // takes KIBBLE_COUNT "dense" 32 bit integers
 // returns 4 "sparse" bytes, for checksum
-fn short256(input: array<u32, KIBBLE_COUNT>) -> array<u32, 4> {
+fn short256(input: array<u32, KIBBLE_COUNT>) -> u32 {
     var ctx: SHA256_CTX;
     var buf: array<u32, BYTES_COUNT>;
 
