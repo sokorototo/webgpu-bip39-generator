@@ -41,7 +41,7 @@ const K = array<u64, 80>(
     0x5fcb6fab3ad6faeclu, 0x6c44198c4a475817lu
 );
 
-fn ROR(x: u64, n: u64) -> u64 { return u64(x >> u32(n)) | (x << (64 - u32(n))); }
+fn ROR(x: u64, n: u64) -> u64 { return u64(x >> u32(n)) | (x << (64u - u32(n))); }
 
 fn S0(x: u64) -> u64 { return (ROR(x, 28) ^ ROR(x, 34) ^ ROR(x, 39)); }
 fn S1(x: u64) -> u64 { return (ROR(x, 14) ^ ROR(x, 18) ^ ROR(x, 41)); }
