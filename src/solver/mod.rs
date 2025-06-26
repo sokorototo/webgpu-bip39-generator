@@ -3,10 +3,11 @@ use std::sync;
 pub(crate) mod passes;
 pub(crate) mod types;
 
-// 2 ^ 22 = 4194304
-pub(crate) const THREADS_PER_DISPATCH: u32 = 4194304; // WORKGROUP_SIZE * DISPATCH_SIZE_X * DISPATCH_SIZE_Y
+// 2 ^ 24 = 16777216
+pub(crate) const THREADS_PER_DISPATCH: u32 = 16777216; // WORKGROUP_SIZE * DISPATCH_SIZE_X * DISPATCH_SIZE_Y
 
-pub(crate) const MAX_RESULTS_FOUND: usize = 65536; // ≈ 2 ^ 16
+// 30% chance of finding a match ~ 524288
+pub(crate) const MAX_RESULTS_FOUND: usize = (THREADS_PER_DISPATCH as usize) / (std::mem::size_of::<types::Entropy>() * 2);
 
 pub(crate) fn stencil_to_constants<'a, I: Iterator<Item = &'a str>>(words: I) -> types::PushConstants {
 	// map stencil to mnemonic
@@ -16,8 +17,10 @@ pub(crate) fn stencil_to_constants<'a, I: Iterator<Item = &'a str>>(words: I) ->
 	let entropy = mnemonic.to_entropy();
 	let slice: &[u32] = bytemuck::cast_slice(&entropy);
 
+	// mnemonic is bigEndian: 💀
 	let mut words = [0u32; 4];
 	words.copy_from_slice(slice);
+	words = words.map(|w| w.to_be());
 
 	types::PushConstants {
 		words,
@@ -27,7 +30,7 @@ pub(crate) fn stencil_to_constants<'a, I: Iterator<Item = &'a str>>(words: I) ->
 }
 
 #[allow(unused)]
-pub(crate) fn solve<F: Fn(&types::PushConstants, &[types::P2PKH_Address]) + Send + Sync + 'static>(config: &super::Config, device: &wgpu::Device, queue: &wgpu::Queue, callback: F) {
+pub(crate) fn solve<F: Fn(&types::PushConstants, &[types::Entropy]) + Send + Sync + 'static>(config: &super::Config, device: &wgpu::Device, queue: &wgpu::Queue, callback: F) {
 	// initialize callback
 	let callback = sync::Arc::new(callback);
 
@@ -44,10 +47,10 @@ pub(crate) fn solve<F: Fn(&types::PushConstants, &[types::P2PKH_Address]) + Send
 	});
 
 	// each pass steps by THREADS_PER_DISPATCH
-	// MAX(config.range.1) = 2^44, maps to 2^22
+	// MAX(config.range.1) = 2^44, maps to 2^24
 	for step in (config.range.0..config.range.1).step_by(THREADS_PER_DISPATCH as _) {
-		// compress entropy from 2^44 to 2^22. Each dispatch processes 2^22 threads
-		constants.entropy = ((step / THREADS_PER_DISPATCH as u64) << 10) as _;
+		// compress entropy from 2^44 to 2^24. Each dispatch processes 2^24 threads
+		constants.entropy = (step / THREADS_PER_DISPATCH as u64) as _;
 
 		// queue commands to find 3rd word
 		let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("solver::encoder") });
@@ -115,7 +118,7 @@ pub(crate) fn solve<F: Fn(&types::PushConstants, &[types::P2PKH_Address]) + Send
 		let count = count_recv.recv().expect("Unable to acquire count from buffer");
 
 		if count >= MAX_RESULTS_FOUND as _ {
-			// panic!("More than {} results found: {}", MAX_RESULTS_FOUND, count);
+			panic!("More than {} results found: {}", MAX_RESULTS_FOUND, count);
 		}
 
 		// map results_destination
@@ -125,7 +128,7 @@ pub(crate) fn solve<F: Fn(&types::PushConstants, &[types::P2PKH_Address]) + Send
 		entropies_destination.map_async(wgpu::MapMode::Read, .., move |res| {
 			let mut range = _results_destination.get_mapped_range(..);
 
-			let results: &[types::P2PKH_Address] = bytemuck::cast_slice(range.as_ref());
+			let results: &[types::Entropy] = bytemuck::cast_slice(range.as_ref());
 			_callback(&constants, &results[..(count as usize)]);
 
 			drop(range);

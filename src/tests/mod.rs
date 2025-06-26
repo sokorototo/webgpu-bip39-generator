@@ -1,3 +1,5 @@
+use std::sync;
+
 use super::*;
 use sha2::Digest;
 use wgpu::util::DeviceExt;
@@ -18,41 +20,167 @@ fn pbkdf2(bytes: &[u8]) -> [u8; 64] {
 }
 
 #[test]
-fn test_short256() {
-	pub(crate) fn verify_results(constants: &solver::types::PushConstants, outputs: &[solver::types::P2PKH_Address]) {
-		// verifies output from solver
-		// let mut set = std::collections::BTreeSet::new();
+fn verify_gpu_simd_rountrip() {}
 
-		for output in outputs {
-			// assert!(set.insert(output[0]), "Duplicate Entropy Found: {}", output[0]);
-			// assert_eq!(constants.entropy, output[1], "Got Different Entropy from GPU");
-
-			let input = [constants.words[0], output[0], output[1], constants.words[3]];
-			let bytes: &[u8] = bytemuck::cast_slice(&input);
-
-			let mnemonic = bip39::Mnemonic::from_entropy_in(bip39::Language::English, bytes).unwrap();
-			assert_eq!(constants.checksum as u8, mnemonic.checksum(), "Extracted Mnemonic Sequence has invalid checksum");
-
-			let shader_output = [output[2], output[3]].map(|s| s as u8);
-			let expected = sha256(bytes);
-
-			assert_eq!(&shader_output, &expected[..2], "Got Different Hash from Shader");
-		}
-	}
+#[test]
+fn verify_mnemonic_phrases() {
+	let config = Config {
+		stencil: ["zoo", "zoo", "zoo", "zoo", "_", "_", "_", "_", "zoo", "zoo", "zoo", "zoo"].map(|s| s.to_string()).into_iter().collect(),
+		range: (0, 2096),
+		address: parse_address("1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa").unwrap(),
+	};
 
 	// init devices
 	let (device, queue) = pollster::block_on(device::init());
 
-	let config = Config {
-		stencil: ["elder", "resist", "rocket", "skill", "_", "_", "_", "_", "jungle", "return", "circle", "umbrella"]
-			.map(|s| s.to_string())
-			.into_iter()
-			.collect(),
-		range: (0, 2048),
-		address: parse_address("1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa").unwrap(),
+	// verify outputs
+	let set = sync::Mutex::new(std::collections::BTreeSet::new());
+	solver::solve(&config, &device, &queue, move |constants: &solver::types::PushConstants, entropies: &[solver::types::Entropy]| {
+		let mut set = set.lock().unwrap();
+
+		// verifies outputs from solver
+		for entropy in entropies {
+			assert!(set.insert(entropy.clone()), "Duplicate Entropy Found: {:?}", entropy);
+
+			let bytes: &[u8] = bytemuck::cast_slice(entropy);
+			let mnemonic = bip39::Mnemonic::from_entropy_in(bip39::Language::English, bytes).unwrap();
+			assert_eq!(constants.checksum as u8, mnemonic.checksum(), "Extracted Mnemonic Sequence has invalid checksum");
+		}
+	});
+}
+
+#[test]
+fn test_short256() {
+	const INPUTS: usize = 4;
+
+	// create inputs
+	let inputs = [[12, 23, 45, 65], [00, 00, 00, 00], [16, 76, 89, 12], [255, 255, 255, 255u32]];
+
+	// create device
+	let (device, queue) = pollster::block_on(device::init());
+
+	// prepare layout descriptor
+	let kibbles_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+		label: Some("test-short256::kibbles"),
+		contents: bytemuck::cast_slice(&inputs),
+		usage: wgpu::BufferUsages::STORAGE,
+	});
+
+	let expected_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+		label: Some("test-short256::expected"),
+		size: std::mem::size_of::<[u32; INPUTS]>() as wgpu::BufferAddress,
+		usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::MAP_READ,
+		mapped_at_creation: false,
+	});
+
+	// init shader
+	let sources = ["src/shaders/short256.wgsl", "src/tests/test_short256.wgsl"];
+	let source = sources.into_iter().fold(String::new(), |acc, nxt| acc + "\n" + &std::fs::read_to_string(nxt).unwrap());
+
+	let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+		label: Some("test-short256::main"),
+		source: wgpu::ShaderSource::Wgsl(source.into()),
+	});
+
+	// configure bind group layout
+	let descriptor = wgpu::BindGroupLayoutDescriptor {
+		label: Some("test-sha512::bind-group-layout"),
+		entries: &[
+			wgpu::BindGroupLayoutEntry {
+				binding: 0,
+				visibility: wgpu::ShaderStages::COMPUTE,
+				ty: wgpu::BindingType::Buffer {
+					ty: wgpu::BufferBindingType::Storage { read_only: true },
+					has_dynamic_offset: false,
+					min_binding_size: None,
+				},
+				count: None,
+			},
+			wgpu::BindGroupLayoutEntry {
+				binding: 1,
+				visibility: wgpu::ShaderStages::COMPUTE,
+				ty: wgpu::BindingType::Buffer {
+					ty: wgpu::BufferBindingType::Storage { read_only: false },
+					has_dynamic_offset: false,
+					min_binding_size: None,
+				},
+				count: None,
+			},
+		],
 	};
 
-	solver::solve(&config, &device, &queue, verify_results);
+	let bind_group_layout = device.create_bind_group_layout(&descriptor);
+
+	// configure bind groups
+	let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+		label: Some("test-short256::bind_group"),
+		layout: &bind_group_layout,
+		entries: &[
+			wgpu::BindGroupEntry {
+				binding: 0,
+				resource: kibbles_buffer.as_entire_binding(),
+			},
+			wgpu::BindGroupEntry {
+				binding: 1,
+				resource: expected_buffer.as_entire_binding(),
+			},
+		],
+	});
+
+	// configure pipeline layout
+	let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+		label: Some("test-short256::pipeline-layout"),
+		bind_group_layouts: &[&bind_group_layout],
+		push_constant_ranges: &[],
+	});
+
+	// create compute pipeline
+	let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+		label: Some("test-short256::pipeline"),
+		module: &shader,
+		entry_point: Some("main"),
+		layout: Some(&pipeline_layout),
+		// defaults
+		cache: None,
+		compilation_options: Default::default(),
+	});
+
+	// create command encoder
+	let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("solver::encoder") });
+
+	{
+		// queue dispatch commands
+		let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+			label: Some("test-sha512::pass"),
+			timestamp_writes: None,
+		});
+
+		pass.set_pipeline(&pipeline);
+		pass.set_bind_group(0, &bind_group, &[]);
+
+		// calculate dimensions of dispatch
+		pass.dispatch_workgroups(INPUTS as _, 1, 1);
+	}
+
+	// submit commands
+	let commands = encoder.finish();
+	queue.submit([commands]);
+
+	// read outputs buffer
+	expected_buffer.clone().map_async(wgpu::MapMode::Read, .., move |res| {
+		res.unwrap();
+
+		let view = expected_buffer.get_mapped_range(..);
+		let bytes: &[u32] = bytemuck::cast_slice(view.as_ref());
+
+		for (idx, gpu_output) in bytes.iter().enumerate() {
+			let cpu_output = sha256(bytemuck::cast_slice(&inputs[idx]))[0] as u32;
+			assert_eq!(*gpu_output, cpu_output, "HashBit Mismatch Between GPU and CPU",);
+		}
+	});
+
+	// wait for tasks to finish
+	device.poll(wgpu::PollType::Wait).unwrap();
 }
 
 #[test]
@@ -102,7 +230,7 @@ fn test_pbkdf2() {
 	});
 
 	// init shader
-	let sources = ["src/shaders/sha512.wgsl", "src/shaders/pbkdf2.wgsl", "src/shaders/test_pbkdf2.wgsl"];
+	let sources = ["src/shaders/sha512.wgsl", "src/shaders/pbkdf2.wgsl", "src/tests/test_pbkdf2.wgsl"];
 	let source = sources.into_iter().fold(String::new(), |acc, nxt| acc + "\n" + &std::fs::read_to_string(nxt).unwrap());
 
 	let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
