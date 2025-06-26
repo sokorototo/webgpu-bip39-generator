@@ -1,5 +1,3 @@
-use std::sync;
-
 use super::*;
 use sha2::Digest;
 use wgpu::util::DeviceExt;
@@ -73,13 +71,13 @@ fn test_short256() {
 	let source = sources.into_iter().fold(String::new(), |acc, nxt| acc + "\n" + &std::fs::read_to_string(nxt).unwrap());
 
 	let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-		label: Some("test-short256::main"),
+		label: Some("test_short256_main"),
 		source: wgpu::ShaderSource::Wgsl(source.into()),
 	});
 
 	// configure bind group layout
 	let descriptor = wgpu::BindGroupLayoutDescriptor {
-		label: Some("test-sha512::bind-group-layout"),
+		label: Some("test-short256::bind_group_layout"),
 		entries: &[
 			wgpu::BindGroupLayoutEntry {
 				binding: 0,
@@ -124,7 +122,7 @@ fn test_short256() {
 
 	// configure pipeline layout
 	let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-		label: Some("test-short256::pipeline-layout"),
+		label: Some("test-short256::pipeline_layout"),
 		bind_group_layouts: &[&bind_group_layout],
 		push_constant_ranges: &[],
 	});
@@ -146,7 +144,7 @@ fn test_short256() {
 	{
 		// queue dispatch commands
 		let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-			label: Some("test-sha512::pass"),
+			label: Some("test-short256::pass"),
 			timestamp_writes: None,
 		});
 
@@ -229,7 +227,7 @@ fn test_pbkdf2() {
 	let source = sources.into_iter().fold(String::new(), |acc, nxt| acc + "\n" + &std::fs::read_to_string(nxt).unwrap());
 
 	let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-		label: Some("test-sha512::main"),
+		label: Some("test_sha512_main"),
 		source: wgpu::ShaderSource::Wgsl(source.into()),
 	});
 

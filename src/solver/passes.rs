@@ -43,7 +43,7 @@ pub(crate) fn filter_pass(device: &wgpu::Device) -> FilterPass {
 	// compile shader
 	let source = concat!(include_str!("../shaders/short256.wgsl"), include_str!("filter_stage.wgsl"));
 	let descriptor = wgpu::ShaderModuleDescriptor {
-		label: Some("filter::shader"),
+		label: Some("filter_main"),
 		source: wgpu::ShaderSource::Wgsl(source.into()),
 	};
 
