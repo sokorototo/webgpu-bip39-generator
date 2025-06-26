@@ -55,9 +55,14 @@ async fn main() {
 	// get device and device
 	let (device, queue) = device::init().await;
 
-	// extract mnemonic seeds
-	let then = std::time::Instant::now();
-	solver::solve(&config, &device, &queue, |_, _| {});
+	// progress tracking
+	let mut then = std::time::Instant::now();
+	let range = (config.range.1 - config.range.0) as f64;
 
-	println!("Took: {:?}, Written File: 'found.txt'", then.elapsed());
+	// solve
+	solver::solve(&config, &device, &queue, move |step, _, e| {
+		let progress = (step as f64 / range) * 100.0;
+		println!("[{}%] {} Entropies Found in {:?}", progress, e.len(), then.elapsed());
+		then = std::time::Instant::now();
+	});
 }

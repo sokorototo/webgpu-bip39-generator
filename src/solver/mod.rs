@@ -30,9 +30,9 @@ pub(crate) fn stencil_to_constants<'a, I: Iterator<Item = &'a str>>(words: I) ->
 }
 
 #[allow(unused)]
-pub(crate) fn solve<F: Fn(&types::PushConstants, &[types::Entropy]) + Send + Sync + 'static>(config: &super::Config, device: &wgpu::Device, queue: &wgpu::Queue, callback: F) {
+pub(crate) fn solve<F: FnMut(u64, &types::PushConstants, &[types::Entropy]) + Send + Sync + 'static>(config: &super::Config, device: &wgpu::Device, queue: &wgpu::Queue, callback: F) {
 	// initialize callback
-	let callback = sync::Arc::new(callback);
+	let callback = sync::Arc::new(sync::Mutex::new(callback));
 
 	// initialize passes
 	let mut constants = stencil_to_constants(config.stencil.iter().map(|s| s.as_str()));
@@ -54,6 +54,8 @@ pub(crate) fn solve<F: Fn(&types::PushConstants, &[types::Entropy]) + Send + Syn
 
 		// queue commands to find 3rd word
 		let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("solver::encoder") });
+
+		// TODO: insert pass to reset count buffer here
 
 		{
 			// queue filter pass
@@ -129,7 +131,10 @@ pub(crate) fn solve<F: Fn(&types::PushConstants, &[types::Entropy]) + Send + Syn
 			let mut range = _results_destination.get_mapped_range(..);
 
 			let results: &[types::Entropy] = bytemuck::cast_slice(range.as_ref());
-			_callback(&constants, &results[..(count as usize)]);
+
+			// call callback
+			let mut c = _callback.lock().unwrap();
+			c(step, &constants, &results[..(count as usize)]);
 
 			drop(range);
 			_results_destination.unmap();

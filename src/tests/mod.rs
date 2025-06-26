@@ -20,9 +20,6 @@ fn pbkdf2(bytes: &[u8]) -> [u8; 64] {
 }
 
 #[test]
-fn verify_gpu_simd_rountrip() {}
-
-#[test]
 fn verify_mnemonic_phrases() {
 	let config = Config {
 		stencil: ["zoo", "zoo", "zoo", "zoo", "_", "_", "_", "_", "zoo", "zoo", "zoo", "zoo"].map(|s| s.to_string()).into_iter().collect(),
@@ -34,10 +31,8 @@ fn verify_mnemonic_phrases() {
 	let (device, queue) = pollster::block_on(device::init());
 
 	// verify outputs
-	let set = sync::Mutex::new(std::collections::BTreeSet::new());
-	solver::solve(&config, &device, &queue, move |constants: &solver::types::PushConstants, entropies: &[solver::types::Entropy]| {
-		let mut set = set.lock().unwrap();
-
+	let mut set = std::collections::BTreeSet::new();
+	solver::solve(&config, &device, &queue, move |_, constants: &solver::types::PushConstants, entropies: &[solver::types::Entropy]| {
 		// verifies outputs from solver
 		for entropy in entropies {
 			assert!(set.insert(entropy.clone()), "Duplicate Entropy Found: {:?}", entropy);
