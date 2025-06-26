@@ -3,6 +3,8 @@ use std::sync;
 pub(crate) mod passes;
 pub(crate) mod types;
 
+use passes::*;
+
 // 2 ^ 24 = 16777216
 pub(crate) const THREADS_PER_DISPATCH: u32 = 16777216; // WORKGROUP_SIZE * DISPATCH_SIZE_X * DISPATCH_SIZE_Y
 
@@ -31,12 +33,13 @@ pub(crate) fn stencil_to_constants<'a, I: Iterator<Item = &'a str>>(words: I) ->
 
 #[allow(unused)]
 pub(crate) fn solve<F: FnMut(u64, &types::PushConstants, &[types::Entropy]) + Send + Sync + 'static>(config: &super::Config, device: &wgpu::Device, queue: &wgpu::Queue, callback: F) {
-	// initialize callback
+	// initialize state
 	let callback = sync::Arc::new(sync::Mutex::new(callback));
+	let mut constants = stencil_to_constants(config.stencil.iter().map(|s| s.as_str()));
 
 	// initialize passes
-	let mut constants = stencil_to_constants(config.stencil.iter().map(|s| s.as_str()));
-	let filter_pass = passes::filter_pass(device);
+	let filter_pass = filter::FilterPass::new(device);
+	let reset_pass = reset::ResetPass::new(device, &filter_pass);
 
 	// init buffers
 	let entropies_destination = device.create_buffer(&wgpu::BufferDescriptor {
@@ -55,7 +58,19 @@ pub(crate) fn solve<F: FnMut(u64, &types::PushConstants, &[types::Entropy]) + Se
 		// queue commands to find 3rd word
 		let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("solver::encoder") });
 
-		// TODO: insert pass to reset count buffer here
+		{
+			// queue reset pass
+			let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+				label: Some("reset::pass"),
+				timestamp_writes: None,
+			});
+
+			pass.set_pipeline(&reset_pass.pipeline);
+			pass.set_bind_group(0, &reset_pass.bind_group, &[]);
+
+			// dispatch
+			pass.dispatch_workgroups(reset::ResetPass::DISPATCH_SIZE_X, reset::ResetPass::DISPATCH_SIZE_Y, 1);
+		}
 
 		{
 			// queue filter pass
@@ -70,9 +85,9 @@ pub(crate) fn solve<F: FnMut(u64, &types::PushConstants, &[types::Entropy]) + Se
 
 			// calculate dimensions of dispatch
 			let threads = (config.range.1 - step).min(THREADS_PER_DISPATCH as _);
-			let dispatch = ((threads as u32 + passes::FilterPass::WORKGROUP_SIZE - 1) / passes::FilterPass::WORKGROUP_SIZE).max(1);
+			let dispatch = ((threads as u32 + filter::FilterPass::WORKGROUP_SIZE - 1) / filter::FilterPass::WORKGROUP_SIZE).max(1);
 
-			pass.dispatch_workgroups(passes::FilterPass::DISPATCH_SIZE_X.min(dispatch), (dispatch / passes::FilterPass::DISPATCH_SIZE_Y).max(1), 1);
+			pass.dispatch_workgroups(filter::FilterPass::DISPATCH_SIZE_X.min(dispatch), (dispatch / filter::FilterPass::DISPATCH_SIZE_Y).max(1), 1);
 		}
 
 		// TODO: insert secondary pass here, use dispatch_indirect to avoid CPU sync of counter and output entropies
@@ -97,13 +112,12 @@ pub(crate) fn solve<F: FnMut(u64, &types::PushConstants, &[types::Entropy]) + Se
 		let _count_buffer = filter_pass.count_buffer.clone();
 
 		// reset count buffer
-		filter_pass.count_buffer.map_async(wgpu::MapMode::Write, .., move |res| match res {
+		filter_pass.count_buffer.map_async(wgpu::MapMode::Read, .., move |res| match res {
 			Ok(_) => {
-				let mut range = _count_buffer.get_mapped_range_mut(..);
-				let bytes: &mut [u32] = bytemuck::cast_slice_mut(range.as_mut());
+				let range = _count_buffer.get_mapped_range(..);
+				let bytes: &[u32] = bytemuck::cast_slice(range.as_ref());
 
 				count_send.send(bytes[0]).unwrap();
-				bytes[0] = 0;
 
 				drop(range);
 				_count_buffer.unmap();
@@ -129,7 +143,6 @@ pub(crate) fn solve<F: FnMut(u64, &types::PushConstants, &[types::Entropy]) + Se
 
 		entropies_destination.map_async(wgpu::MapMode::Read, .., move |res| {
 			let mut range = _results_destination.get_mapped_range(..);
-
 			let results: &[types::Entropy] = bytemuck::cast_slice(range.as_ref());
 
 			// call callback

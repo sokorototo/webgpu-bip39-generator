@@ -3,11 +3,11 @@ const THREAD_COUNT = 16777216; // 2 ^ 22
 
 const P2PKH_ADDRESS_SIZE = 20;
 
-@group(0) @binding(0)
-var<storage, read_write> dispatch: array<u32, 4>;
+@group(0) @binding(0) // X Y Z COUNT
+var<storage, read> dispatch: array<u32, 4>;
 
 @group(0) @binding(1)
-var<storage, read_write> entropies: array<array<u32, 4>, MAX_RESULTS_FOUND>;
+var<storage, read> entropies: array<array<u32, 4>, MAX_RESULTS_FOUND>;
 
 @group(0) @binding(2)
 var<storage, read_write> address: array<u32, P2PKH_ADDRESS_SIZE>;
