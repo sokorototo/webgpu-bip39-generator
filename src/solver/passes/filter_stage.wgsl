@@ -5,7 +5,7 @@ const DISPATCH_SIZE_Y = 256; // 2 ^ 8
 
 const THREAD_COUNT = 16777216; // WORKGROUP_SIZE * DISPATCH_SIZE_Y * DISPATCH_SIZE_X
 
-const MAX_ENTROPIES_FOUND = 349525; // ARRAY_MAX_SIZE
+const MAX_RESULTS_FOUND = 2097152;
 const CHUNKS = 4;
 
 struct PushConstants {
@@ -20,14 +20,14 @@ struct PushConstants {
 
 var<push_constant> constants: PushConstants;
 
-@group(0) @binding(0) // X Y Z COUNT
-var<storage, read_write> dispatch: array<u32, 4>;
+@group(0) @binding(0) // X Y Z: X = COUNT
+var<storage, read_write> dispatch: array<u32, 3>;
 
 @group(0) @binding(1)
 var<storage, read_write> count: atomic<u32>;
 
 @group(0) @binding(2)
-var<storage, read_write> entropies: array<array<u32, CHUNKS>, MAX_ENTROPIES_FOUND>;
+var<storage, read_write> entropies: array<array<u32, CHUNKS>, MAX_RESULTS_FOUND>;
 
 // TODO: Compress cryptographic functions from sparse to dense u32s
 
@@ -38,7 +38,7 @@ fn main(
     @builtin(local_invocation_id) local: vec3<u32>,
     @builtin(workgroup_id) workgroup_id: vec3<u32>
 ) {
-    if atomicLoad(&count) >= MAX_ENTROPIES_FOUND {
+    if atomicLoad(&count) >= MAX_RESULTS_FOUND {
         return;
     }
 
@@ -57,6 +57,8 @@ fn main(
     if short256 >> 4 == constants.checksum {
         var index = atomicAdd(&count, 1u);
         entropies[index] = entropy;
-        dispatch[3] = index;
+
+        // update entropies count
+        dispatch[1] = index;
     }
 }

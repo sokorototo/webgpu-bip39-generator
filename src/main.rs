@@ -15,7 +15,7 @@ pub(crate) struct Config {
 	range: (u64, u64),
 	/// file containing list of known addresses to verify against
 	#[argh(option, short = 'a', from_str_fn(parse_address))]
-	address: solver::types::P2PKH_Address,
+	address: solver::types::PublicKeyHash,
 }
 
 pub(crate) fn parse_address(path: &str) -> Result<[u32; 20], String> {
@@ -57,12 +57,14 @@ async fn main() {
 
 	// progress tracking
 	let mut then = std::time::Instant::now();
-	let range = (config.range.1 - config.range.0) as f64;
+	let range = (config.range.1 - config.range.0) / solver::THREADS_PER_DISPATCH as u64;
 
 	// solve
-	solver::solve(&config, &device, &queue, move |step, _, e| {
-		let progress = (step as f64 / range) * 100.0;
-		println!("[{}%] {} Entropies Found in {:?}", progress, e.len(), then.elapsed());
+	let entropies_callback = move |step: u64, _: &solver::passes::filter::PushConstants, e: &[solver::types::Entropy]| {
+		let iteration = (step / solver::THREADS_PER_DISPATCH as u64) + 1;
+		println!("[{:03}/{}]: {} Entropies Found in {:?}", iteration, range, e.len(), then.elapsed());
 		then = std::time::Instant::now();
-	});
+	};
+
+	solver::solve(&config, &device, &queue, Some(entropies_callback));
 }

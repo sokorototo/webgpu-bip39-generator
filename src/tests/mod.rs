@@ -30,16 +30,19 @@ fn verify_mnemonic_phrases() {
 
 	// verify outputs
 	let mut set = std::collections::BTreeSet::new();
-	solver::solve(&config, &device, &queue, move |_, constants: &solver::types::PushConstants, entropies: &[solver::types::Entropy]| {
+	let callback = move |_, constants: &solver::passes::filter::PushConstants, entropies: &[solver::types::Entropy]| {
 		// verifies outputs from solver
 		for entropy in entropies {
-			assert!(set.insert(entropy.clone()), "Duplicate Entropy Found: {:?}", entropy);
-
 			let bytes: &[u8] = bytemuck::cast_slice(entropy);
 			let mnemonic = bip39::Mnemonic::from_entropy_in(bip39::Language::English, bytes).unwrap();
 			assert_eq!(constants.checksum as u8, mnemonic.checksum(), "Extracted Mnemonic Sequence has invalid checksum");
+
+			// verify uniqueness
+			assert!(set.insert(entropy.clone()), "Duplicate Entropy Found: {:?}", entropy);
 		}
-	});
+	};
+
+	solver::solve(&config, &device, &queue, Some(callback));
 }
 
 #[test]
@@ -167,8 +170,8 @@ fn test_short256() {
 		let bytes: &[u32] = bytemuck::cast_slice(view.as_ref());
 
 		for (idx, gpu_output) in bytes.iter().enumerate() {
-			let cpu_output = sha256(bytemuck::cast_slice(&inputs[idx]))[0] as u32;
-			assert_eq!(*gpu_output, cpu_output, "HashBit Mismatch Between GPU and CPU",);
+			let cpu_output = sha256(bytemuck::cast_slice(&inputs[idx]));
+			assert_eq!(*gpu_output, cpu_output[0] as u32, "HashBit Mismatch Between GPU and CPU",);
 		}
 	});
 

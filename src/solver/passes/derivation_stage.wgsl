@@ -1,19 +1,34 @@
+// dispatch size is dynamic, through dispatch_indirect: X=*,Y=*,Z=1
 const WORKGROUP_SIZE = 256; // 2 ^ 8
-const THREAD_COUNT = 16777216; // 2 ^ 22
-
 const P2PKH_ADDRESS_SIZE = 20;
 
-@group(0) @binding(0) // X Y Z COUNT
-var<storage, read> dispatch: array<u32, 4>;
+const MAX_RESULTS_FOUND = 2097152;
+const CHUNKS = 4;
+
+// same as filter stage, most fields ignored
+struct PushConstants {
+    address: array<u32, P2PKH_ADDRESS_SIZE>,
+    checksum: u32,
+};
+
+var<push_constant> constants: PushConstants;
 
 @group(0) @binding(1)
-var<storage, read> entropies: array<array<u32, 4>, MAX_RESULTS_FOUND>;
+var<storage, read> entropies: array<array<u32, CHUNKS>, MAX_RESULTS_FOUND>;
 
-@group(0) @binding(2)
-var<storage, read_write> address: array<u32, P2PKH_ADDRESS_SIZE>;
+@group(0) @binding(2) // complete list of bip39 words
+var<storage, read> word_list: array<Word, 2048>;
+
+struct Word {
+    bytes: array<u32, 8>,
+    length: u32,
+};
+
+@group(0) @binding(3)
+var<storage, read_write> output: array<array<u32, SHA512_HASH_LENGTH>, MAX_RESULTS_FOUND>;
 
 // bind bip39::words or embed as constant
-fn entropy_to_indices(entropy: array<u32, 4>, checksum: u32) -> array<u32, 12> {
+fn entropy_to_indices(entropy: array<u32, CHUNKS>) -> array<u32, 12> {
     var out = array<u32, 12>();
 
     // 1st chunk
@@ -34,8 +49,62 @@ fn entropy_to_indices(entropy: array<u32, 4>, checksum: u32) -> array<u32, 12> {
     // 4th chunk + Entropy
     out[9] = (entropy[3] << 3) >> 21;
     out[10] = (entropy[3] << 14) >> 21;
-    out[11] = ((entropy[3] << 25) >> 21) | checksum;
+    out[11] = ((entropy[3] << 25) >> 21) | constants.checksum;
 
     return out;
 }
 
+// 12 words, max 8 characters with 11 spaces. That's 107 max bytes, 128 for ease of use with pbkdf2
+const MNEMONIC_MAX_BYTES = 128;
+
+fn indices_to_word(indices: array<u32, 12>, dest: ptr<function, array<u32, MNEMONIC_MAX_BYTES>>) -> u32 {
+    // Convert indices to word bytes
+    var cursor = 0u;
+
+    for (var i = 0; i < 12; i++) {
+        let index = indices[i];
+        let word = word_list[index];
+
+        for (var j = 0u; j < word.length; j++) {
+            // Get the byte from the word, append to dest
+            dest[cursor] = word.bytes[j];
+            cursor += 1;
+        }
+
+        // append space if not last word
+        if i != 11 {
+            // ASCII space character
+            dest[cursor] = 0x20u;
+            cursor += 1;
+        }
+    }
+
+    // return the number of bytes written
+    return cursor;
+}
+
+@compute @workgroup_size(WORKGROUP_SIZE)
+fn main(@builtin(global_invocation_id) global: vec3<u32>) {
+    // generate indices for mnemonics words from entropy
+    let entropy = entropies[global.x];
+    let indices = entropy_to_indices(entropy);
+
+    // extract word bytes and derive master extended key
+    var word_bytes = array<u32, MNEMONIC_MAX_BYTES>();
+    let length = indices_to_word(indices, &word_bytes);
+
+    // b"mnemonic"
+    var mnemonic = array<u32, 8>(109, 110, 101, 109, 111, 110, 105, 99);
+    let mnemonic_len = 8u;
+
+    var salt = array<u32, SHA512_MAX_INPUT_SIZE>();
+    for (var i = 0; i < 8; i++) {
+        salt[i] = mnemonic[i];
+    }
+
+    // pbkdf(key, salt, 2048) to get master extended key
+    let master_key: array<u32, SHA512_HASH_LENGTH> = pbkdf2(&word_bytes, length, &salt, mnemonic_len, 2048);
+    output[global.x] = master_key;
+
+    // TODO: continue with derivation path
+}

@@ -1,16 +1,13 @@
-const P2PKH_ADDRESS_SIZE: usize = 20;
-
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-pub(crate) struct PushConstants {
-	pub(crate) words: [u32; 4],
-	pub(crate) entropy: u32,
-	/// Checksum is 1 or 0
-	pub(crate) checksum: u32,
+pub(crate) struct Bip39Word {
+	pub(crate) bytes: [u32; 8],
+	pub(crate) length: u32,
 }
 
-#[allow(non_camel_case_types)]
+/// Represents a 64bit sha512 hash as an array of 32-bit integers
+pub(crate) type GpuSha512Hash = [u32; 64];
+/// The entropy of a verified mnemonic phrase
 pub(crate) type Entropy = [u32; 4];
-
-#[allow(non_camel_case_types)]
-pub(crate) type P2PKH_Address = [u32; P2PKH_ADDRESS_SIZE];
+/// Represents a verified P2PKH address as a 20-byte hash
+pub(crate) type PublicKeyHash = [u32; 20];
