@@ -1,10 +1,14 @@
 pub(crate) async fn init() -> (wgpu::Device, wgpu::Queue) {
-	let backend_options = Default::default();
+	#[cfg(not(debug_assertions))]
+	let flags = wgpu::InstanceFlags::default();
+
+	#[cfg(debug_assertions)]
+	let flags = wgpu::InstanceFlags::advanced_debugging();
 
 	// configure wgpu
 	let instance_desc = wgpu::InstanceDescriptor {
 		backends: wgpu::Instance::enabled_backend_features(),
-		backend_options,
+		flags,
 		..Default::default()
 	};
 
@@ -25,5 +29,12 @@ pub(crate) async fn init() -> (wgpu::Device, wgpu::Queue) {
 		..Default::default()
 	};
 
-	pollster::block_on(adapter.request_device(&device_options)).unwrap()
+	let (device, queue) = pollster::block_on(adapter.request_device(&device_options)).unwrap();
+
+	// init error handling
+	device.on_uncaptured_error(Box::new(|err| {
+		eprintln!("Uncaptured error: {}", err);
+	}));
+
+	(device, queue)
 }

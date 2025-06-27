@@ -17,10 +17,6 @@ pub(crate) fn solve<E>(config: &super::Config, device: &wgpu::Device, queue: &wg
 where
 	E: FnMut(u64, &filter::PushConstants, &[types::Entropy]) + Send + Sync + 'static,
 {
-	device.on_uncaptured_error(Box::new(|err| {
-		eprintln!("Uncaptured error: {}", err);
-	}));
-
 	// initialize state
 	let entropies_callback = entropies_callback.map(|e| sync::Arc::new(sync::Mutex::new(e)));
 	let entropies_callback_state = entropies_callback.map(|e| {
