@@ -57,12 +57,12 @@ async fn main() {
 
 	// progress tracking
 	let mut then = std::time::Instant::now();
-	let range = (config.range.1 - config.range.0) / solver::THREADS_PER_DISPATCH as u64;
+	let range = 1 + (config.range.1 - config.range.0) / solver::THREADS_PER_DISPATCH as u64;
 
 	// solve
 	let entropies_callback = move |step: u64, _: &solver::passes::filter::PushConstants, e: &[solver::types::Entropy]| {
 		let iteration = (step / solver::THREADS_PER_DISPATCH as u64) + 1;
-		println!("[{:03}/{}]: {} Entropies Found in {:?}", iteration, range, e.len(), then.elapsed());
+		println!("[{:03}/{:03}]: {} Entropies Found in {:?}", iteration, range, e.len(), then.elapsed());
 		then = std::time::Instant::now();
 	};
 
