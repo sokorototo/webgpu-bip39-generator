@@ -59,6 +59,6 @@ fn main(
         entropies[index] = entropy;
 
         // update entropies count
-        dispatch[1] = index;
+        dispatch[0] = (index + 1);
     }
 }

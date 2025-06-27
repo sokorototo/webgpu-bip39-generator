@@ -1,4 +1,4 @@
-use std::sync;
+use std::{sync, time};
 
 pub(crate) mod passes;
 pub(crate) mod types;
@@ -22,7 +22,7 @@ where
 		let entropies_dest = device.create_buffer(&wgpu::BufferDescriptor {
 			label: Some("solver::entropies-destination"),
 			size: (std::mem::size_of::<[types::Entropy; MAX_RESULTS_FOUND]>()) as wgpu::BufferAddress,
-			usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+			usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
 			mapped_at_creation: false,
 		});
 
@@ -105,6 +105,9 @@ where
 		let commands = encoder.finish();
 		queue.submit([commands]);
 
+		// wait for commands to finish
+		device.poll(wgpu::PollType::Wait).unwrap();
+
 		// call callback if registered
 		if let Some((entropies_dest, callback)) = entropies_callback_state.as_ref() {
 			// wait for results_destination to be ready
@@ -127,11 +130,9 @@ where
 				}
 			});
 
-			// poll event loop
+			// poll map_async callback
 			device.poll(wgpu::PollType::Wait).unwrap();
-
-			// read results_destination copy buffer
-			let count = count_recv.recv().expect("Unable to acquire count from buffer");
+			let count = count_recv.recv_timeout(time::Duration::from_secs(5)).expect("Unable to acquire count from buffer");
 
 			if count >= MAX_RESULTS_FOUND as _ {
 				panic!("More than {} results found: {}", MAX_RESULTS_FOUND, count);
@@ -143,6 +144,8 @@ where
 			let constants_ = filter_pass.constants;
 
 			entropies_dest.map_async(wgpu::MapMode::Read, .., move |res| {
+				res.unwrap();
+
 				let mut range = entropies_dest_.get_mapped_range(..);
 				let results: &[types::Entropy] = bytemuck::cast_slice(range.as_ref());
 
@@ -153,9 +156,9 @@ where
 				drop(range);
 				entropies_dest_.unmap();
 			});
-		}
 
-		// wait for callback to finish
-		device.poll(wgpu::PollType::Wait).unwrap();
+			// poll map_async callback
+			device.poll(wgpu::PollType::Wait).unwrap();
+		}
 	}
 }
