@@ -9,10 +9,11 @@ pub(crate) struct PushConstants {
 }
 
 pub(crate) struct DerivationPass {
+	pub constants: PushConstants,
 	pub pipeline: wgpu::ComputePipeline,
 	pub bind_group: wgpu::BindGroup,
 	pub output_buffer: wgpu::Buffer,
-	pub constants: PushConstants,
+	pub word_list_buffer: wgpu::Buffer,
 }
 
 impl DerivationPass {
@@ -151,6 +152,7 @@ impl DerivationPass {
 			pipeline,
 			bind_group,
 			output_buffer,
+			word_list_buffer,
 			constants: PushConstants {
 				address,
 				checksum: filter_pass.constants.checksum,

@@ -100,6 +100,7 @@ where
 
 			// dispatch workgroups for exact results produced by filter pass
 			pass.dispatch_workgroups_indirect(&filter_pass.dispatch_buffer, 0);
+			// pass.dispatch_workgroups(64, 1, 1);
 		}
 
 		// submit commands
