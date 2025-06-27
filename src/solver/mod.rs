@@ -74,6 +74,18 @@ where
 			pass.dispatch_workgroups(filter::FilterPass::DISPATCH_SIZE_X.min(dispatch), (dispatch / filter::FilterPass::DISPATCH_SIZE_Y).max(1), 1);
 		}
 
+		// if callback is registered, copy results to destination buffer
+		if let Some((entropies_dest, _)) = entropies_callback_state.as_ref() {
+			// queue read results from derivation pass
+			encoder.copy_buffer_to_buffer(
+				&filter_pass.entropies_buffer,
+				0,
+				&entropies_dest,
+				0,
+				(std::mem::size_of::<[types::Entropy; MAX_RESULTS_FOUND]>()) as wgpu::BufferAddress,
+			);
+		};
+
 		{
 			// queue derivation pass
 			let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
@@ -88,18 +100,6 @@ where
 			// dispatch workgroups for exact results produced by filter pass
 			pass.dispatch_workgroups_indirect(&filter_pass.dispatch_buffer, 0);
 		}
-
-		// if callback is registered, copy results to destination buffer
-		if let Some((entropies_dest, _)) = entropies_callback_state.as_ref() {
-			// queue read results from derivation pass
-			encoder.copy_buffer_to_buffer(
-				&filter_pass.entropies_buffer,
-				0,
-				&entropies_dest,
-				0,
-				(std::mem::size_of::<[types::Entropy; MAX_RESULTS_FOUND]>()) as wgpu::BufferAddress,
-			);
-		};
 
 		// submit commands
 		let commands = encoder.finish();
