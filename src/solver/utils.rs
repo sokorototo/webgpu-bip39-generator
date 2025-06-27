@@ -1,8 +1,9 @@
 use std::fmt::Debug;
 
 pub(crate) fn log_buffer<T: bytemuck::Pod + Debug>(device: &wgpu::Device, buffer: &wgpu::Buffer, label: &'static str, count: usize) {
-	let buffer_ = buffer.clone();
+	println!("Buffer[{}] = {}", label, count);
 
+	let buffer_ = buffer.clone();
 	buffer.map_async(wgpu::MapMode::Read, .., move |res| {
 		res.unwrap();
 

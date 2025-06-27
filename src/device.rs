@@ -1,18 +1,4 @@
 pub(crate) async fn init() -> (wgpu::Device, wgpu::Queue) {
-	// // user modern DXC
-	// #[cfg(target_os = "windows")]
-	// let backend_options = wgpu::BackendOptions {
-	// 	dx12: wgpu::Dx12BackendOptions {
-	// 		shader_compiler: wgpu::Dx12Compiler::DynamicDxc {
-	// 			dxc_path: concat!(env!("CARGO_MANIFEST_DIR"), "/dxc/x64/dxcompiler.dll").to_string(),
-	// 			dxil_path: concat!(env!("CARGO_MANIFEST_DIR"), "/dxc/x64/dxil.dll").to_string(),
-	// 			max_shader_model: wgpu::DxcShaderModel::V6_7,
-	// 		},
-	// 	},
-	// 	..Default::default()
-	// };
-
-	// #[cfg(not(target_os = "windows"))]
 	let backend_options = Default::default();
 
 	// configure wgpu

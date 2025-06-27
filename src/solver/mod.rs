@@ -17,6 +17,10 @@ pub(crate) fn solve<E>(config: &super::Config, device: &wgpu::Device, queue: &wg
 where
 	E: FnMut(u64, &filter::PushConstants, &[types::Entropy]) + Send + Sync + 'static,
 {
+	device.on_uncaptured_error(Box::new(|err| {
+		eprintln!("Uncaptured error: {}", err);
+	}));
+
 	// initialize state
 	let entropies_callback = entropies_callback.map(|e| sync::Arc::new(sync::Mutex::new(e)));
 	let entropies_callback_state = entropies_callback.map(|e| {
@@ -107,9 +111,6 @@ where
 		let commands = encoder.finish();
 		queue.submit([commands]);
 
-		// log buffers for debugging
-		utils::log_buffer::<types::GpuSha512Hash>(device, &derivation_pass.output_buffer, "derivation::output_buffer", 32);
-
 		// wait for commands to finish
 		device.poll(wgpu::PollType::Wait).unwrap();
 
@@ -139,7 +140,8 @@ where
 			device.poll(wgpu::PollType::Wait).unwrap();
 			let count = count_recv.recv_timeout(time::Duration::from_secs(5)).expect("Unable to acquire count from buffer");
 
-			dbg!(count);
+			// log buffers for debugging
+			utils::log_buffer::<types::GpuSha512Hash>(device, &derivation_pass.output_buffer, "derivation::output_buffer", count as _);
 
 			if count >= MAX_RESULTS_FOUND as _ {
 				panic!("More than {} results found: {}", MAX_RESULTS_FOUND, count);
