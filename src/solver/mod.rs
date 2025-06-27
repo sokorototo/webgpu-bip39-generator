@@ -2,6 +2,7 @@ use std::{sync, time};
 
 pub(crate) mod passes;
 pub(crate) mod types;
+pub(crate) mod utils;
 
 use passes::*;
 
@@ -105,6 +106,9 @@ where
 		let commands = encoder.finish();
 		queue.submit([commands]);
 
+		// log buffers for debugging
+		utils::log_buffer::<types::GpuSha512Hash>(device, &derivation_pass.output_buffer, "derivation::output_buffer", 32);
+
 		// wait for commands to finish
 		device.poll(wgpu::PollType::Wait).unwrap();
 
@@ -133,6 +137,8 @@ where
 			// poll map_async callback
 			device.poll(wgpu::PollType::Wait).unwrap();
 			let count = count_recv.recv_timeout(time::Duration::from_secs(5)).expect("Unable to acquire count from buffer");
+
+			dbg!(count);
 
 			if count >= MAX_RESULTS_FOUND as _ {
 				panic!("More than {} results found: {}", MAX_RESULTS_FOUND, count);
