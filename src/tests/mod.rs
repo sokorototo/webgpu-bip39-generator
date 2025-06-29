@@ -26,8 +26,6 @@ fn verify_mnemonic_phrases() {
 	};
 
 	// init devices
-	// let _ = unsafe { libloading::Library::new("renderdoc.dll").expect("libloading call failed") };
-	// let mut rd: renderdoc::RenderDoc<renderdoc::V130> = renderdoc::RenderDoc::new().unwrap();
 	let (device, queue) = pollster::block_on(device::init());
 
 	// verify outputs
@@ -44,9 +42,7 @@ fn verify_mnemonic_phrases() {
 		}
 	};
 
-	// rd.start_frame_capture(null(), null()); // compute shader with only one device active
 	solver::solve(&config, &device, &queue, Some(callback));
-	// rd.end_frame_capture(null(), null());
 }
 
 #[test]

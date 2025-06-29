@@ -38,6 +38,10 @@ where
 	// each pass steps by THREADS_PER_DISPATCH = 2^24
 	// MAX(config.range.1) = 2^44. THREADS_PER_DISPATCH * 2^22
 	for step in (config.range.0..config.range.1).step_by(THREADS_PER_DISPATCH as _) {
+		unsafe {
+			device.start_graphics_debugger_capture();
+		};
+
 		let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("solver::encoder") });
 
 		{
@@ -137,18 +141,18 @@ where
 			let count = count_recv.recv_timeout(time::Duration::from_secs(5)).expect("Unable to acquire count from buffer");
 
 			// log buffers for debugging
-			utils::inspect_buffer(device, &derivation_pass.output_buffer, move |data: &[types::GpuSha512Hash]| {
-				println!("Buffer[derivation::output_buffer] = {}", count);
-				let zeroed: types::GpuSha512Hash = bytemuck::Zeroable::zeroed();
+			// utils::inspect_buffer(device, &derivation_pass.output_buffer, move |data: &[types::GpuSha512Hash]| {
+			// 	println!("Buffer[derivation::output_buffer] = {}", count);
+			// 	let zeroed: types::GpuSha512Hash = bytemuck::Zeroable::zeroed();
 
-				for (idx, i) in data.iter().take(count as _).enumerate() {
-					if i == &zeroed {
-						continue;
-					}
+			// 	for (idx, i) in data.iter().take(count as _).enumerate() {
+			// 		if i == &zeroed {
+			// 			continue;
+			// 		}
 
-					println!("[{}] = {:?}", idx, i);
-				}
-			});
+			// 		println!("[{}] = {:?}", idx, i);
+			// 	}
+			// });
 
 			if count >= MAX_RESULTS_FOUND as _ {
 				panic!("More than {} results found: {}", MAX_RESULTS_FOUND, count);
@@ -177,4 +181,8 @@ where
 			device.poll(wgpu::PollType::Wait).unwrap();
 		}
 	}
+
+	unsafe {
+		device.stop_graphics_debugger_capture();
+	};
 }
