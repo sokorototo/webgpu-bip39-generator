@@ -9,8 +9,8 @@ use passes::*;
 // 2 ^ 24 = 16777216
 pub(crate) const THREADS_PER_DISPATCH: u32 = 16777216; // WORKGROUP_SIZE * DISPATCH_SIZE_X * DISPATCH_SIZE_Y
 
-// 25% chance of finding a match ~ 16777216
-pub(crate) const MAX_RESULTS_FOUND: usize = (THREADS_PER_DISPATCH as usize) / 4;
+// 6.25% chance of finding a match ~ 1398101
+pub(crate) const MAX_RESULTS_FOUND: usize = (THREADS_PER_DISPATCH as usize) / 12;
 
 pub(crate) struct EntropyCallback<F = EntropyCallbackDefault>(pub(crate) F);
 pub(crate) type EntropyCallbackDefault = fn(u64, &filter::PushConstants, &[types::Entropy]);

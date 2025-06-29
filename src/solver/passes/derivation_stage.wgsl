@@ -2,7 +2,7 @@
 const WORKGROUP_SIZE = 256; // 2 ^ 8
 const P2PKH_ADDRESS_SIZE = 20;
 
-const MAX_RESULTS_FOUND = 3355443;
+const MAX_RESULTS_FOUND = 1398101;
 const CHUNKS = 4;
 
 // same as filter stage, most fields ignored
