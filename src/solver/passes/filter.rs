@@ -35,7 +35,7 @@ pub(crate) struct FilterPass {
 	pub constants: PushConstants,
 	pub pipeline: wgpu::ComputePipeline,
 	pub bind_group: wgpu::BindGroup,
-	pub entropies_buffer: wgpu::Buffer,
+	pub matches_buffer: wgpu::Buffer,
 	pub count_buffer: wgpu::Buffer,
 	pub dispatch_buffer: wgpu::Buffer,
 }
@@ -64,9 +64,9 @@ impl FilterPass {
 			usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::MAP_READ,
 		});
 
-		let entropies_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-			label: Some("solver_entropies"),
-			size: (std::mem::size_of::<types::Entropy>() * MAX_RESULTS_FOUND as usize) as wgpu::BufferAddress,
+		let matches_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+			label: Some("solver_matches"),
+			size: (std::mem::size_of::<types::Match>() * MAX_RESULTS_FOUND as usize) as wgpu::BufferAddress,
 			usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
 			mapped_at_creation: false,
 		});
@@ -135,7 +135,7 @@ impl FilterPass {
 				},
 				wgpu::BindGroupEntry {
 					binding: 2,
-					resource: entropies_buffer.as_entire_binding(),
+					resource: matches_buffer.as_entire_binding(),
 				},
 			],
 		});
@@ -164,7 +164,7 @@ impl FilterPass {
 		FilterPass {
 			pipeline,
 			bind_group,
-			entropies_buffer,
+			matches_buffer,
 			count_buffer,
 			dispatch_buffer,
 			constants: PushConstants::from_stencil(stencil),

@@ -30,15 +30,17 @@ fn verify_mnemonic_phrases() {
 
 	// verify outputs
 	let mut set = std::collections::BTreeSet::new();
-	let callback = move |_, constants: &solver::passes::filter::PushConstants, entropies: &[solver::types::Entropy]| {
+
+	let callback = move |_, constants: &solver::passes::filter::PushConstants, matches: &[solver::types::Match]| {
 		// verifies outputs from solver
-		for entropy in entropies {
-			let bytes: &[u8] = bytemuck::cast_slice(entropy);
+		for match_ in matches {
+			let match_ = [constants.words[0], match_[0], match_[1], constants.words[3]];
+			let bytes: &[u8] = bytemuck::cast_slice(match_);
 			let mnemonic = bip39::Mnemonic::from_entropy_in(bip39::Language::English, bytes).unwrap();
 			assert_eq!(constants.checksum as u8, mnemonic.checksum(), "Extracted Mnemonic Sequence has invalid checksum");
 
 			// verify uniqueness
-			assert!(set.insert(entropy.clone()), "Duplicate Entropy Found: {:?}", entropy);
+			assert!(set.insert(match_.clone()), "Duplicate Entropy Found: {:?}", match_);
 		}
 	};
 

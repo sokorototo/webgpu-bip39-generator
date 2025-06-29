@@ -13,24 +13,24 @@ pub(crate) const THREADS_PER_DISPATCH: u32 = 16777216; // WORKGROUP_SIZE * DISPA
 pub(crate) const MAX_RESULTS_FOUND: usize = (THREADS_PER_DISPATCH as usize) / 12;
 
 pub(crate) struct EntropyCallback<F = EntropyCallbackDefault>(pub(crate) F);
-pub(crate) type EntropyCallbackDefault = fn(u64, &filter::PushConstants, &[types::Entropy]);
+pub(crate) type EntropyCallbackDefault = fn(u64, &filter::PushConstants, &[types::Match]);
 
 #[allow(unused)]
-pub(crate) fn solve<E>(config: &super::Config, device: &wgpu::Device, queue: &wgpu::Queue, entropies_callback: Option<EntropyCallback<E>>)
+pub(crate) fn solve<E>(config: &super::Config, device: &wgpu::Device, queue: &wgpu::Queue, matches_callbacks: Option<EntropyCallback<E>>)
 where
-	E: FnMut(u64, &filter::PushConstants, &[types::Entropy]) + Send + Sync + 'static,
+	E: FnMut(u64, &filter::PushConstants, &[types::Match]) + Send + Sync + 'static,
 {
 	// initialize state
-	let entropies_callback = entropies_callback.map(|e| sync::Arc::new(sync::Mutex::new(e)));
-	let entropies_callback_state = entropies_callback.map(|e| {
-		let entropies_dest = device.create_buffer(&wgpu::BufferDescriptor {
-			label: Some("solver_entropies_destination"),
-			size: (std::mem::size_of::<[types::Entropy; MAX_RESULTS_FOUND]>()) as wgpu::BufferAddress,
+	let matches_callback = matches_callbacks.map(|e| sync::Arc::new(sync::Mutex::new(e)));
+	let matches_callback_state = matches_callback.map(|e| {
+		let matches_dest = device.create_buffer(&wgpu::BufferDescriptor {
+			label: Some("solver_matches_destination"),
+			size: (std::mem::size_of::<[types::Match; MAX_RESULTS_FOUND]>()) as wgpu::BufferAddress,
 			usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
 			mapped_at_creation: false,
 		});
 
-		(entropies_dest, e)
+		(matches_dest, e)
 	});
 
 	// initialize passes
@@ -79,14 +79,14 @@ where
 		}
 
 		// if callback is registered, copy results to destination buffer
-		if let Some((entropies_dest, _)) = entropies_callback_state.as_ref() {
+		if let Some((matches_dest, _)) = matches_callback_state.as_ref() {
 			// queue read results from derivation pass
 			encoder.copy_buffer_to_buffer(
-				&filter_pass.entropies_buffer,
+				&filter_pass.matches_buffer,
 				0,
-				&entropies_dest,
+				&matches_dest,
 				0,
-				(std::mem::size_of::<[types::Entropy; MAX_RESULTS_FOUND]>()) as wgpu::BufferAddress,
+				(std::mem::size_of::<[types::Match; MAX_RESULTS_FOUND]>()) as wgpu::BufferAddress,
 			);
 		};
 
@@ -114,7 +114,7 @@ where
 		device.poll(wgpu::PollType::Wait).unwrap();
 
 		// call callback if registered
-		if let Some((entropies_dest, callback)) = entropies_callback_state.as_ref() {
+		if let Some((matches_dest, callback)) = matches_callback_state.as_ref() {
 			// wait for results_destination to be ready
 			let (count_send, count_recv) = sync::mpsc::sync_channel(1);
 			let _count_buffer = filter_pass.count_buffer.clone();
@@ -158,22 +158,22 @@ where
 			}
 
 			// map results_destination
-			let entropies_dest_ = entropies_dest.clone();
+			let matches_dest_ = matches_dest.clone();
 			let callback_ = callback.clone();
 			let constants_ = filter_pass.constants;
 
-			entropies_dest.map_async(wgpu::MapMode::Read, .., move |res| {
+			matches_dest.map_async(wgpu::MapMode::Read, .., move |res| {
 				res.unwrap();
 
-				let mut range = entropies_dest_.get_mapped_range(..);
-				let results: &[types::Entropy] = bytemuck::cast_slice(range.as_ref());
+				let mut range = matches_dest_.get_mapped_range(..);
+				let results: &[types::Match] = bytemuck::cast_slice(range.as_ref());
 
 				// call callback
 				let mut c = callback_.lock().unwrap();
 				c.0(step, &constants_, &results[..(count as usize)]);
 
 				drop(range);
-				entropies_dest_.unmap();
+				matches_dest_.unmap();
 			});
 
 			// poll map_async callback

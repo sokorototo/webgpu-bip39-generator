@@ -4,6 +4,7 @@ use wgpu::util::DeviceExt;
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub(crate) struct PushConstants {
+	pub(crate) words: [u32; 2],
 	pub(crate) address: types::PublicKeyHash,
 	pub(crate) checksum: u32,
 }
@@ -114,7 +115,7 @@ impl DerivationPass {
 			entries: &[
 				wgpu::BindGroupEntry {
 					binding: 1,
-					resource: filter_pass.entropies_buffer.as_entire_binding(),
+					resource: filter_pass.matches_buffer.as_entire_binding(),
 				},
 				wgpu::BindGroupEntry {
 					binding: 2,
@@ -154,6 +155,7 @@ impl DerivationPass {
 			output_buffer,
 			word_list_buffer,
 			constants: PushConstants {
+				words: [filter_pass.constants.words[0], filter_pass.constants.words[3]],
 				address,
 				checksum: filter_pass.constants.checksum,
 			},

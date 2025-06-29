@@ -6,7 +6,7 @@ const DISPATCH_SIZE_Y = 256; // 2 ^ 8
 const THREAD_COUNT = 16777216; // WORKGROUP_SIZE * DISPATCH_SIZE_Y * DISPATCH_SIZE_X
 
 const MAX_RESULTS_FOUND = 1398101;
-const CHUNKS = 4;
+const MISSING = 4;
 
 struct PushConstants {
     word0: u32,
@@ -27,7 +27,7 @@ var<storage, read_write> dispatch: array<u32, 3>;
 var<storage, read_write> count: atomic<u32>;
 
 @group(0) @binding(2)
-var<storage, read_write> entropies: array<array<u32, CHUNKS>, MAX_RESULTS_FOUND>;
+var<storage, read_write> matches: array<array<u32, MISSING>, MAX_RESULTS_FOUND>;
 
 // TODO: Compress cryptographic functions from sparse to dense u32s
 
@@ -53,12 +53,12 @@ fn main(
     var entropy = array<u32, 4>(constants.word0, combined_2, combined_3, constants.word3);
     var short256 = short256(entropy);
 
-    // insert entropy for next pass
+    // if entropy matches, queue for next stage
     if short256 >> 4 == constants.checksum {
         var index = atomicAdd(&count, 1u);
-        entropies[index] = entropy;
+        matches[index] = array<u32, MISSING>(combined_2, combined_3);
 
-        // update entropies count
+        // update matches count
         dispatch[0] = (index + 1);
     }
 }
