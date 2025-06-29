@@ -140,18 +140,18 @@ where
 			let count = count_recv.recv_timeout(time::Duration::from_secs(5)).expect("Unable to acquire count from buffer");
 
 			// log buffers for debugging
-			// utils::inspect_buffer(device, &derivation_pass.output_buffer, move |data: &[types::GpuSha512Hash]| {
-			// 	println!("Buffer[derivation::output_buffer] = {}", count);
-			// 	let zeroed: types::GpuSha512Hash = bytemuck::Zeroable::zeroed();
+			utils::inspect_buffer(device, &derivation_pass.output_buffer, move |data: &[types::GpuSha512Hash]| {
+				println!("Buffer[derivation::output_buffer] = {}", count);
+				let zeroed: types::GpuSha512Hash = bytemuck::Zeroable::zeroed();
 
-			// 	for (idx, i) in data.iter().take(count as _).enumerate() {
-			// 		if i == &zeroed {
-			// 			continue;
-			// 		}
+				for (idx, i) in data.iter().take(count as _).enumerate() {
+					if i == &zeroed || idx % 8 != 0 {
+						continue;
+					}
 
-			// 		println!("[{}] = {:?}", idx, i);
-			// 	}
-			// });
+					println!("[{}] = {:?}", idx, i);
+				}
+			});
 
 			if count >= MAX_RESULTS_FOUND as _ {
 				panic!("More than {} results found: {}", MAX_RESULTS_FOUND, count);
