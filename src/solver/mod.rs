@@ -171,19 +171,19 @@ pub(crate) fn solve<const F: u8>(config: &super::Config, device: &wgpu::Device, 
 
 		// send entropies if requested
 		if let Some(matches_dest) = derivations_dest.as_ref() {
-			// log buffers for debugging
-			utils::inspect_buffer(device, &derivation_pass.output_buffer, move |data: &[types::GpuSha512Hash]| {
-				println!("Buffer[derivation::output_buffer] = {}", matches_count);
-				let zeroed: types::GpuSha512Hash = bytemuck::Zeroable::zeroed();
+			// // log buffers for debugging
+			// utils::inspect_buffer(device, &derivation_pass.output_buffer, move |data: &[types::GpuSha512Hash]| {
+			// 	println!("Buffer[derivation::output_buffer] = {}", matches_count);
+			// 	let zeroed: types::GpuSha512Hash = bytemuck::Zeroable::zeroed();
 
-				for (idx, i) in data.iter().take(matches_count as _).enumerate() {
-					if i == &zeroed || idx % 8 != 0 {
-						continue;
-					}
+			// 	for (idx, i) in data.iter().take(matches_count as _).enumerate() {
+			// 		if i == &zeroed || idx % 8 != 0 {
+			// 			continue;
+			// 		}
 
-					println!("[{}] = {:?}", idx, i);
-				}
-			});
+			// 		println!("[{}] = {:?}", idx, i);
+			// 	}
+			// });
 
 			// map results_destination
 			let matches_dest_ = matches_dest.clone();
