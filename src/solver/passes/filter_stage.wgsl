@@ -43,11 +43,11 @@ fn main(
     }
 
     // word[1]: lower 20 bits of entropy come from push_constants::entropy, upper 12 bits are known
-    let combined_2 = constants.word1 | constants.entropy;
+    var combined_2 = constants.word1 | constants.entropy;
 
     // word[2]: upper 24 bits of entropy come from global index, lower 8 bits are known
     var entropy_3 = (local.x << 16) | (workgroup_id.y << 8) | workgroup_id.x;
-    let combined_3 = constants.word2 | (entropy_3 << 8);
+    var combined_3 = constants.word2 | (entropy_3 << 8);
 
     // verify mnemonic checksum
     var entropy = array<u32, 4>(constants.word0, combined_2, combined_3, constants.word3);

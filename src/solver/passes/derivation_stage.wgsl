@@ -86,14 +86,12 @@ fn indices_to_word(indices: array<u32, 12>, dest: ptr<function, array<u32, MNEMO
 @compute @workgroup_size(WORKGROUP_SIZE)
 fn main(@builtin(global_invocation_id) global: vec3<u32>) {
     // generate indices for mnemonics words from entropy
-    let entropy = entropies[global.x];
-    let indices = entropy_to_indices(entropy);
-
+    var entropy = entropies[global.x];
+    var indices = entropy_to_indices(entropy);
 
     // extract word bytes and derive master extended key
     var word_bytes = array<u32, MNEMONIC_MAX_BYTES>();
-    let length = indices_to_word(indices, &word_bytes);
-
+    var length = indices_to_word(indices, &word_bytes);
 
     // b"mnemonic"
     var mnemonic = array<u32, 8>(109, 110, 101, 109, 111, 110, 105, 99);
