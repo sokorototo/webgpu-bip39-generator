@@ -14,7 +14,6 @@ pub(crate) struct DerivationPass {
 	pub pipeline: wgpu::ComputePipeline,
 	pub bind_group: wgpu::BindGroup,
 	pub output_buffer: wgpu::Buffer,
-	pub word_list_buffer: wgpu::Buffer,
 }
 
 impl DerivationPass {
@@ -49,13 +48,14 @@ impl DerivationPass {
 				usage: wgpu::BufferUsages::STORAGE,
 			};
 
+			// TODO: verify contents
 			device.create_buffer_init(&descriptor)
 		};
 
 		let output_buffer = device.create_buffer(&wgpu::BufferDescriptor {
 			label: Some("derivation_outputs"),
 			size: (std::mem::size_of::<[types::GpuSha512Hash; MAX_RESULTS_FOUND]>() as usize) as wgpu::BufferAddress,
-			usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC | wgpu::BufferUsages::MAP_READ,
+			usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
 			mapped_at_creation: false,
 		});
 
@@ -153,7 +153,6 @@ impl DerivationPass {
 			pipeline,
 			bind_group,
 			output_buffer,
-			word_list_buffer,
 			constants: PushConstants {
 				words: [filter_pass.constants.words[0], filter_pass.constants.words[3]],
 				address,

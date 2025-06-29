@@ -1,4 +1,7 @@
-use std::{sync, time};
+use std::{
+	sync::{self, mpsc},
+	time,
+};
 
 pub(crate) mod passes;
 pub(crate) mod types;
@@ -12,25 +15,46 @@ pub(crate) const THREADS_PER_DISPATCH: u32 = 16777216; // WORKGROUP_SIZE * DISPA
 // 6.25% chance of finding a match ~ 1398101
 pub(crate) const MAX_RESULTS_FOUND: usize = (THREADS_PER_DISPATCH as usize) / 12;
 
-pub(crate) struct EntropyCallback<F = EntropyCallbackDefault>(pub(crate) F);
-pub(crate) type EntropyCallbackDefault = fn(u64, &filter::PushConstants, &[types::Match]);
+// flags to enable sending certain data through the sender
+pub(crate) const MATCHES_FLAG: u8 = 0b0000_0001;
+pub(crate) const DERIVATIONS_FLAG: u8 = 0b0000_0010;
+
+// represents data extracted from the solver
+pub(crate) struct SolverUpdate {
+	pub(crate) step: u64,
+	pub(crate) data: SolverData,
+}
+
+pub(crate) enum SolverData {
+	Matches {
+		constants: passes::filter::PushConstants,
+		matches: Box<[types::Match]>,
+	},
+	Derivations {
+		constants: passes::derivation::PushConstants,
+		derivations: Box<[types::GpuSha512Hash]>,
+	},
+}
 
 #[allow(unused)]
-pub(crate) fn solve<E>(config: &super::Config, device: &wgpu::Device, queue: &wgpu::Queue, matches_callbacks: Option<EntropyCallback<E>>)
-where
-	E: FnMut(u64, &filter::PushConstants, &[types::Match]) + Send + Sync + 'static,
-{
+pub(crate) fn solve<const F: u8>(config: &super::Config, device: &wgpu::Device, queue: &wgpu::Queue, sender: mpsc::Sender<SolverUpdate>) {
 	// initialize state
-	let matches_callback = matches_callbacks.map(|e| sync::Arc::new(sync::Mutex::new(e)));
-	let matches_callback_state = matches_callback.map(|e| {
-		let matches_dest = device.create_buffer(&wgpu::BufferDescriptor {
+	let matches_dest = (F & MATCHES_FLAG == F).then(|| {
+		device.create_buffer(&wgpu::BufferDescriptor {
 			label: Some("solver_matches_destination"),
 			size: (std::mem::size_of::<[types::Match; MAX_RESULTS_FOUND]>()) as wgpu::BufferAddress,
 			usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
 			mapped_at_creation: false,
-		});
+		})
+	});
 
-		(matches_dest, e)
+	let derivations_dest = (F & MATCHES_FLAG == F).then(|| {
+		device.create_buffer(&wgpu::BufferDescriptor {
+			label: Some("solver_matches_destination"),
+			size: (std::mem::size_of::<[types::Match; MAX_RESULTS_FOUND]>()) as wgpu::BufferAddress,
+			usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+			mapped_at_creation: false,
+		})
 	});
 
 	// initialize passes
@@ -41,6 +65,7 @@ where
 	// each pass steps by THREADS_PER_DISPATCH = 2^24
 	// MAX(config.range.1) = 2^44. THREADS_PER_DISPATCH * 2^22
 	for step in (config.range.0..config.range.1).step_by(THREADS_PER_DISPATCH as _) {
+		let mut matches_count = 0;
 		let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("solver::encoder") });
 
 		{
@@ -78,8 +103,8 @@ where
 			pass.dispatch_workgroups(filter::FilterPass::DISPATCH_SIZE_X.min(dispatch), (dispatch / filter::FilterPass::DISPATCH_SIZE_Y).max(1), 1);
 		}
 
-		// if callback is registered, copy results to destination buffer
-		if let Some((matches_dest, _)) = matches_callback_state.as_ref() {
+		// if entropies are requested, copy results to destination buffer
+		if let Some(matches_dest) = derivations_dest.as_ref() {
 			// queue read results from derivation pass
 			encoder.copy_buffer_to_buffer(
 				&filter_pass.matches_buffer,
@@ -110,12 +135,8 @@ where
 		let commands = encoder.finish();
 		queue.submit([commands]);
 
-		// wait for commands to finish
-		device.poll(wgpu::PollType::Wait).unwrap();
-
-		// call callback if registered
-		if let Some((matches_dest, callback)) = matches_callback_state.as_ref() {
-			// wait for results_destination to be ready
+		// if any read flags are set, read `count` buffer
+		if (F & MATCHES_FLAG == F) || (F & DERIVATIONS_FLAG == F) {
 			let (count_send, count_recv) = sync::mpsc::sync_channel(1);
 			let _count_buffer = filter_pass.count_buffer.clone();
 
@@ -137,14 +158,25 @@ where
 
 			// poll map_async callback
 			device.poll(wgpu::PollType::Wait).unwrap();
-			let count = count_recv.recv_timeout(time::Duration::from_secs(5)).expect("Unable to acquire count from buffer");
+			matches_count = count_recv.recv_timeout(time::Duration::from_secs(5)).expect("Unable to acquire matches_count from buffer");
 
+			// output buffer was full
+			if matches_count >= MAX_RESULTS_FOUND as _ {
+				panic!("More than {} results found: {}", MAX_RESULTS_FOUND, matches_count);
+			}
+		}
+
+		// wait for commands to finish
+		device.poll(wgpu::PollType::Wait).unwrap();
+
+		// send entropies if requested
+		if let Some(matches_dest) = derivations_dest.as_ref() {
 			// log buffers for debugging
 			utils::inspect_buffer(device, &derivation_pass.output_buffer, move |data: &[types::GpuSha512Hash]| {
-				println!("Buffer[derivation::output_buffer] = {}", count);
+				println!("Buffer[derivation::output_buffer] = {}", matches_count);
 				let zeroed: types::GpuSha512Hash = bytemuck::Zeroable::zeroed();
 
-				for (idx, i) in data.iter().take(count as _).enumerate() {
+				for (idx, i) in data.iter().take(matches_count as _).enumerate() {
 					if i == &zeroed || idx % 8 != 0 {
 						continue;
 					}
@@ -153,13 +185,9 @@ where
 				}
 			});
 
-			if count >= MAX_RESULTS_FOUND as _ {
-				panic!("More than {} results found: {}", MAX_RESULTS_FOUND, count);
-			}
-
 			// map results_destination
 			let matches_dest_ = matches_dest.clone();
-			let callback_ = callback.clone();
+			let sender_ = sender.clone();
 			let constants_ = filter_pass.constants;
 
 			matches_dest.map_async(wgpu::MapMode::Read, .., move |res| {
@@ -168,9 +196,16 @@ where
 				let mut range = matches_dest_.get_mapped_range(..);
 				let results: &[types::Match] = bytemuck::cast_slice(range.as_ref());
 
-				// call callback
-				let mut c = callback_.lock().unwrap();
-				c.0(step, &constants_, &results[..(count as usize)]);
+				// send results
+				sender_
+					.send(SolverUpdate {
+						step,
+						data: SolverData::Matches {
+							constants: filter_pass.constants,
+							matches: Box::from(&results[..matches_count as _]),
+						},
+					})
+					.expect("Unable to send results through channel");
 
 				drop(range);
 				matches_dest_.unmap();

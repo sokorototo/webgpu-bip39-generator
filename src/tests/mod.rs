@@ -18,7 +18,7 @@ fn pbkdf2(bytes: &[u8]) -> [u8; 64] {
 }
 
 #[test]
-fn verify_mnemonic_phrases() {
+fn verify_mnemonic_filters() {
 	let config = Config {
 		stencil: ["zoo", "zoo", "zoo", "zoo", "_", "_", "_", "_", "zoo", "zoo", "zoo", "zoo"].map(|s| s.to_string()).into_iter().collect(),
 		range: (0, 2048),
@@ -28,23 +28,38 @@ fn verify_mnemonic_phrases() {
 	// init devices
 	let (device, queue) = pollster::block_on(device::init());
 
-	// verify outputs
-	let mut set = std::collections::BTreeSet::new();
+	// start monitoring thread
+	let (sender, receiver) = std::sync::mpsc::channel::<solver::SolverUpdate>();
 
-	let callback = move |_, constants: &solver::passes::filter::PushConstants, matches: &[solver::types::Match]| {
+	let thread = std::thread::spawn(move || {
+		// verify identity of entropies
+		let mut set = std::collections::BTreeSet::new();
+
 		// verifies outputs from solver
-		for match_ in matches {
-			let match_ = [constants.words[0], match_[0], match_[1], constants.words[3]];
-			let bytes: &[u8] = bytemuck::cast_slice(&match_);
-			let mnemonic = bip39::Mnemonic::from_entropy_in(bip39::Language::English, bytes).unwrap();
-			assert_eq!(constants.checksum as u8, mnemonic.checksum(), "Extracted Mnemonic Sequence has invalid checksum");
+		while let Ok(update) = receiver.recv() {
+			let solver::SolverData::Matches { constants, matches } = update.data else {
+				continue;
+			};
 
-			// verify uniqueness
-			assert!(set.insert(match_.clone()), "Duplicate Entropy Found: {:?}", match_);
+			// verify constants
+			for match_ in matches {
+				let match_ = [constants.words[0], match_[0], match_[1], constants.words[3]];
+				let bytes: &[u8] = bytemuck::cast_slice(&match_);
+
+				let mnemonic = bip39::Mnemonic::from_entropy_in(bip39::Language::English, bytes).unwrap();
+				assert_eq!(constants.checksum as u8, mnemonic.checksum(), "Extracted Mnemonic Sequence has invalid checksum");
+
+				// verify uniqueness
+				assert!(set.insert(match_.clone()), "Duplicate Entropy Found: {:?}", match_);
+			}
 		}
-	};
 
-	solver::solve(&config, &device, &queue, Some(solver::EntropyCallback(callback)));
+		// ensure set is not empty
+		assert!(!set.is_empty(), "Entropies Set was empty");
+	});
+
+	solver::solve::<{ solver::MATCHES_FLAG }>(&config, &device, &queue, sender);
+	let _ = thread.join().unwrap();
 }
 
 #[test]

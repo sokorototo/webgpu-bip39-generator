@@ -59,12 +59,21 @@ async fn main() {
 	let mut then = std::time::Instant::now();
 	let range = 1 + (config.range.1 - config.range.0) / solver::THREADS_PER_DISPATCH as u64;
 
-	// solve
-	let callback = move |step: u64, _: &solver::passes::filter::PushConstants, e: &[solver::types::Match]| {
-		let iteration = (step / solver::THREADS_PER_DISPATCH as u64) + 1;
-		println!("[{:03}/{:03}]: {} Entropies Found in {:?}", iteration, range, e.len(), then.elapsed());
-		then = std::time::Instant::now();
-	};
+	// start monitoring thread
+	let (sender, receiver) = std::sync::mpsc::channel::<solver::SolverUpdate>();
+	let handle = std::thread::spawn(move || {
+		while let Ok(update) = receiver.recv() {
+			let solver::SolverData::Matches { matches, .. } = update.data else {
+				continue;
+			};
 
-	solver::solve(&config, &device, &queue, Some(solver::EntropyCallback(callback)));
+			let iteration = (update.step / solver::THREADS_PER_DISPATCH as u64) + 1;
+			println!("[{:03}/{:03}]: {} Entropies Found in {:?}", iteration, range, matches.len(), then.elapsed());
+			then = std::time::Instant::now();
+		}
+	});
+
+	// solve
+	solver::solve::<{ solver::MATCHES_FLAG }>(&config, &device, &queue, sender);
+	let _result = handle.join().expect("Monitoring thread experienced an error");
 }
