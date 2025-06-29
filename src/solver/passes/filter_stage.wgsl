@@ -6,7 +6,7 @@ const DISPATCH_SIZE_Y = 256; // 2 ^ 8
 const THREAD_COUNT = 16777216; // WORKGROUP_SIZE * DISPATCH_SIZE_Y * DISPATCH_SIZE_X
 
 const MAX_RESULTS_FOUND = 1398101;
-const MISSING = 4;
+const MISSING = 2;
 
 struct PushConstants {
     word0: u32,

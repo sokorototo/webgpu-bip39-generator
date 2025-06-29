@@ -3,7 +3,7 @@ const WORKGROUP_SIZE = 256; // 2 ^ 8
 const P2PKH_ADDRESS_SIZE = 20;
 
 const MAX_RESULTS_FOUND = 1398101;
-const MISSING = 4;
+const MISSING = 2;
 
 // same as filter stage, most fields ignored
 struct PushConstants {
