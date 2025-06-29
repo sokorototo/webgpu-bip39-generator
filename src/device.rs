@@ -23,7 +23,7 @@ pub(crate) async fn init() -> (wgpu::Device, wgpu::Queue) {
 	let device_options = wgpu::DeviceDescriptor {
 		label: Some("address_extractor"),
 		required_features: adapter.features() | wgpu::Features::PUSH_CONSTANTS | wgpu::Features::SHADER_INT64,
-		required_limits: adapter.limits(),
+		required_limits: dbg!(adapter.limits()),
 		..Default::default()
 	};
 
