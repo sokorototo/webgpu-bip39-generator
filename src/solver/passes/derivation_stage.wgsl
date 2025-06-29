@@ -2,7 +2,7 @@
 const WORKGROUP_SIZE = 256; // 2 ^ 8
 const P2PKH_ADDRESS_SIZE = 20;
 
-const MAX_RESULTS_FOUND = 2097152;
+const MAX_RESULTS_FOUND = 3355443;
 const CHUNKS = 4;
 
 // same as filter stage, most fields ignored
@@ -24,8 +24,8 @@ struct Word {
     length: u32,
 };
 
-@group(0) @binding(3)
-var<storage, read_write> output: array<array<u32, SHA512_HASH_LENGTH>, MAX_RESULTS_FOUND>;
+// @group(0) @binding(3)
+// var<storage, read_write> output: array<array<u32, SHA512_HASH_LENGTH>, MAX_RESULTS_FOUND>;
 
 // bind bip39::words or embed as constant
 fn entropy_to_indices(entropy: array<u32, CHUNKS>) -> array<u32, 12> {
@@ -106,6 +106,6 @@ fn main(@builtin(global_invocation_id) global: vec3<u32>) {
     var master_key: array<u32, SHA512_HASH_LENGTH>;
     pbkdf2(&word_bytes, length, &salt, mnemonic_len, 2048, &master_key);
 
-    output[global.x] = master_key;
+    // output[global.x] = master_key;
     // TODO: continue with derivation path
 }
