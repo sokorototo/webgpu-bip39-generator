@@ -53,19 +53,19 @@ impl FilterPass {
 
 		// prepare buffers
 		let dispatch_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-			label: Some("solver::dispatch"),
+			label: Some("solver_dispatch"),
 			contents: bytemuck::cast_slice(&[1, 1, 1u32]),
 			usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::INDIRECT,
 		});
 
 		let count_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-			label: Some("solver::count"),
+			label: Some("solver_count"),
 			contents: bytemuck::cast_slice(&[0]),
 			usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::MAP_READ,
 		});
 
 		let entropies_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-			label: Some("solver::entropies"),
+			label: Some("solver_entropies"),
 			size: (std::mem::size_of::<types::Entropy>() * MAX_RESULTS_FOUND as usize) as wgpu::BufferAddress,
 			usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
 			mapped_at_creation: false,
@@ -85,7 +85,7 @@ impl FilterPass {
 
 		// configure bind group layout
 		let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-			label: Some("filter::bind_group_layout"),
+			label: Some("filter_bind_group_layout"),
 			entries: &[
 				wgpu::BindGroupLayoutEntry {
 					binding: 0,
@@ -122,7 +122,7 @@ impl FilterPass {
 
 		// configure bind groups
 		let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-			label: Some("filter::bind_group"),
+			label: Some("filter_bind_group"),
 			layout: &bind_group_layout,
 			entries: &[
 				wgpu::BindGroupEntry {
@@ -142,7 +142,7 @@ impl FilterPass {
 
 		// configure pipeline layout
 		let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-			label: Some("filter::pipeline-layout"),
+			label: Some("filter_pipeline_layout"),
 			bind_group_layouts: &[&bind_group_layout],
 			push_constant_ranges: &[wgpu::PushConstantRange {
 				stages: wgpu::ShaderStages::COMPUTE,
@@ -152,7 +152,7 @@ impl FilterPass {
 
 		// create compute pipeline
 		let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-			label: Some("filter::pipeline"),
+			label: Some("filter_pipeline"),
 			module: &shader,
 			entry_point: Some("main"),
 			layout: Some(&pipeline_layout),

@@ -25,7 +25,7 @@ impl ResetPass {
 
 		// configure bind group layout
 		let descriptor = wgpu::BindGroupLayoutDescriptor {
-			label: Some("reset::bind-group-layout"),
+			label: Some("reset_bind_group_layout"),
 			entries: &[wgpu::BindGroupLayoutEntry {
 				binding: 1,
 				visibility: wgpu::ShaderStages::COMPUTE,
@@ -42,7 +42,7 @@ impl ResetPass {
 
 		// configure bind groups
 		let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-			label: Some("reset::bind_group"),
+			label: Some("reset_bind_group"),
 			layout: &bind_group_layout,
 			entries: &[wgpu::BindGroupEntry {
 				binding: 1,
@@ -52,14 +52,14 @@ impl ResetPass {
 
 		// configure pipeline layout
 		let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-			label: Some("reset::pipeline-layout"),
+			label: Some("reset_pipeline_layout"),
 			bind_group_layouts: &[&bind_group_layout],
 			push_constant_ranges: &[],
 		});
 
 		// create compute pipeline
 		let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-			label: Some("reset::pipeline"),
+			label: Some("reset_pipeline"),
 			module: &shader,
 			entry_point: Some("main"),
 			layout: Some(&pipeline_layout),

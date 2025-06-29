@@ -1,8 +1,6 @@
 use std::fmt::Debug;
 
-pub(crate) fn log_buffer<T: bytemuck::Pod + Debug>(device: &wgpu::Device, buffer: &wgpu::Buffer, label: &'static str, count: usize) {
-	println!("Buffer[{}] = {}", label, count);
-
+pub(crate) fn inspect_buffer<T: bytemuck::Pod + Debug, F: Fn(&[T]) + Send + Sync + 'static>(device: &wgpu::Device, buffer: &wgpu::Buffer, callback: F) {
 	let buffer_ = buffer.clone();
 	buffer.map_async(wgpu::MapMode::Read, .., move |res| {
 		res.unwrap();
@@ -10,9 +8,8 @@ pub(crate) fn log_buffer<T: bytemuck::Pod + Debug>(device: &wgpu::Device, buffer
 		let range = buffer_.get_mapped_range(..);
 		let data: &[T] = bytemuck::cast_slice(range.as_ref());
 
-		for (idx, i) in data.iter().take(count).enumerate() {
-			println!("{}[{}] = {:?}", label, idx, i);
-		}
+		// Call the provided callback with the data
+		callback(data);
 
 		drop(range);
 		buffer_.unmap();

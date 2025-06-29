@@ -21,7 +21,7 @@ where
 	let entropies_callback = entropies_callback.map(|e| sync::Arc::new(sync::Mutex::new(e)));
 	let entropies_callback_state = entropies_callback.map(|e| {
 		let entropies_dest = device.create_buffer(&wgpu::BufferDescriptor {
-			label: Some("solver::entropies-destination"),
+			label: Some("solver_entropies_destination"),
 			size: (std::mem::size_of::<[types::Entropy; MAX_RESULTS_FOUND]>()) as wgpu::BufferAddress,
 			usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
 			mapped_at_creation: false,
@@ -43,7 +43,7 @@ where
 		{
 			// queue reset pass
 			let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-				label: Some("reset::pass"),
+				label: Some("reset_pass"),
 				timestamp_writes: None,
 			});
 
@@ -57,7 +57,7 @@ where
 		{
 			// queue filter pass
 			let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-				label: Some("filter::pass"),
+				label: Some("filter_pass"),
 				timestamp_writes: None,
 			});
 
@@ -65,8 +65,8 @@ where
 			filter_pass.constants.entropy = (step / THREADS_PER_DISPATCH as u64) as _;
 
 			pass.set_pipeline(&filter_pass.pipeline);
-			pass.set_bind_group(0, &filter_pass.bind_group, &[]);
 			pass.set_push_constants(0, bytemuck::cast_slice(&[filter_pass.constants]));
+			pass.set_bind_group(0, &filter_pass.bind_group, &[]);
 
 			// calculate dimensions of dispatch
 			let threads = (config.range.1 - step).min(THREADS_PER_DISPATCH as _);
@@ -90,13 +90,13 @@ where
 		{
 			// queue derivation pass
 			let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-				label: Some("derivation::pass"),
+				label: Some("derivation_pass"),
 				timestamp_writes: None,
 			});
 
 			pass.set_pipeline(&derivation_pass.pipeline);
-			pass.set_bind_group(0, &derivation_pass.bind_group, &[]);
 			pass.set_push_constants(0, bytemuck::cast_slice(&[derivation_pass.constants]));
+			pass.set_bind_group(0, &derivation_pass.bind_group, &[]);
 
 			// dispatch workgroups for exact results produced by filter pass
 			pass.dispatch_workgroups_indirect(&filter_pass.dispatch_buffer, 0);
@@ -137,7 +137,18 @@ where
 			let count = count_recv.recv_timeout(time::Duration::from_secs(5)).expect("Unable to acquire count from buffer");
 
 			// log buffers for debugging
-			utils::log_buffer::<types::GpuSha512Hash>(device, &derivation_pass.output_buffer, "derivation::output_buffer", count as _);
+			utils::inspect_buffer(device, &derivation_pass.output_buffer, move |data: &[types::GpuSha512Hash]| {
+				println!("Buffer[derivation::output_buffer] = {}", count);
+				let zeroed: types::GpuSha512Hash = bytemuck::Zeroable::zeroed();
+
+				for (idx, i) in data.iter().take(count as _).enumerate() {
+					if i == &zeroed {
+						continue;
+					}
+
+					println!("[{}] = {:?}", idx, i);
+				}
+			});
 
 			if count >= MAX_RESULTS_FOUND as _ {
 				panic!("More than {} results found: {}", MAX_RESULTS_FOUND, count);

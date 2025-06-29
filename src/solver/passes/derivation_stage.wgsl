@@ -104,10 +104,10 @@ fn main(@builtin(global_invocation_id) global: vec3<u32>) {
         salt[i] = mnemonic[i];
     }
 
+    // TODO: avoid using an intermediate array, use storage buffer and index directly in functions
+    var master_key: array<u32, SHA512_HASH_LENGTH>;
+    pbkdf2(&word_bytes, length, &salt, mnemonic_len, 2048, &master_key);
 
-    // pbkdf(key, salt, 2048) to get master extended key
-    let master_key: array<u32, SHA512_HASH_LENGTH> = pbkdf2(&word_bytes, length, &salt, mnemonic_len, 2048);
     output[global.x] = master_key;
-
     // TODO: continue with derivation path
 }

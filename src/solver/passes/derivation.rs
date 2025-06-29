@@ -43,7 +43,7 @@ impl DerivationPass {
 				.collect::<Vec<_>>();
 
 			let descriptor = wgpu::util::BufferInitDescriptor {
-				label: Some("derivation::word_list"),
+				label: Some("derivation_word_list"),
 				contents: bytemuck::cast_slice(&words),
 				usage: wgpu::BufferUsages::STORAGE,
 			};
@@ -52,7 +52,7 @@ impl DerivationPass {
 		};
 
 		let output_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-			label: Some("derivation::outputs"),
+			label: Some("derivation_outputs"),
 			size: (std::mem::size_of::<[types::GpuSha512Hash; MAX_RESULTS_FOUND]>() as usize) as wgpu::BufferAddress,
 			usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC | wgpu::BufferUsages::MAP_READ,
 			mapped_at_creation: false,
@@ -72,7 +72,7 @@ impl DerivationPass {
 
 		// configure bind group layout
 		let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-			label: Some("derivation::bind_group_layout"),
+			label: Some("derivation_bind_group_layout"),
 			entries: &[
 				wgpu::BindGroupLayoutEntry {
 					binding: 1,
@@ -109,7 +109,7 @@ impl DerivationPass {
 
 		// configure bind groups
 		let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-			label: Some("derivation::bind_group"),
+			label: Some("derivation_bind_group"),
 			layout: &bind_group_layout,
 			entries: &[
 				wgpu::BindGroupEntry {
@@ -129,7 +129,7 @@ impl DerivationPass {
 
 		// configure pipeline layout
 		let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-			label: Some("derivation::pipeline-layout"),
+			label: Some("derivation_pipeline_layout"),
 			bind_group_layouts: &[&bind_group_layout],
 			push_constant_ranges: &[wgpu::PushConstantRange {
 				stages: wgpu::ShaderStages::COMPUTE,
@@ -139,7 +139,7 @@ impl DerivationPass {
 
 		// create compute pipeline
 		let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-			label: Some("derivation::pipeline"),
+			label: Some("derivation_pipeline"),
 			module: &shader,
 			entry_point: Some("main"),
 			layout: Some(&pipeline_layout),

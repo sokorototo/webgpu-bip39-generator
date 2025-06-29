@@ -110,8 +110,8 @@ fn compress_ctx(ctx: ptr<function, SHA512_CTX>) {
     };
 
     for (var i = 0u; i < 80; i++) {
-        let T1 = h + S1(e) + ((e & f) ^ (~e & g)) + K[i] + W[i];
-        let T2 = S0(a) + ((a & b) ^ (a & c) ^ (b & c));
+        var T1 = h + S1(e) + ((e & f) ^ (~e & g)) + K[i] + W[i];
+        var T2 = S0(a) + ((a & b) ^ (a & c) ^ (b & c));
 
         h = g;
         g = f;
@@ -173,8 +173,8 @@ fn sha512_compress(ctx: ptr<function, SHA512_CTX>, data: ptr<function, array<u32
     };
 
     for (var i = 0u; i < 80; i++) {
-        let T1 = h + S1(e) + ((e & f) ^ (~e & g)) + K[i] + W[i];
-        let T2 = S0(a) + ((a & b) ^ (a & c) ^ (b & c));
+        var T1 = h + S1(e) + ((e & f) ^ (~e & g)) + K[i] + W[i];
+        var T2 = S0(a) + ((a & b) ^ (a & c) ^ (b & c));
 
         h = g;
         g = f;
