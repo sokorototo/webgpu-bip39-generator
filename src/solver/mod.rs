@@ -135,6 +135,9 @@ pub(crate) fn solve<const F: u8>(config: &super::Config, device: &wgpu::Device, 
 		let commands = encoder.finish();
 		queue.submit([commands]);
 
+		// wait for commands to finish
+		device.poll(wgpu::PollType::Wait).unwrap();
+
 		// if any read flags are set, read `count` buffer
 		if (F & MATCHES_FLAG == F) || (F & DERIVATIONS_FLAG == F) {
 			let (count_send, count_recv) = sync::mpsc::sync_channel(1);
@@ -165,9 +168,6 @@ pub(crate) fn solve<const F: u8>(config: &super::Config, device: &wgpu::Device, 
 				panic!("More than {} results found: {}", MAX_RESULTS_FOUND, matches_count);
 			}
 		}
-
-		// wait for commands to finish
-		device.poll(wgpu::PollType::Wait).unwrap();
 
 		// send entropies if requested
 		if let Some(matches_dest) = derivations_dest.as_ref() {
