@@ -12,8 +12,11 @@ pub(crate) const THREADS_PER_DISPATCH: u32 = 16777216; // WORKGROUP_SIZE * DISPA
 // 30% chance of finding a match ~ 2097152
 pub(crate) const MAX_RESULTS_FOUND: usize = (THREADS_PER_DISPATCH as usize) / 8;
 
+pub(crate) struct EntropyCallback<F = EntropyCallbackDefault>(pub(crate) F);
+pub(crate) type EntropyCallbackDefault = fn(u64, &filter::PushConstants, &[types::Entropy]);
+
 #[allow(unused)]
-pub(crate) fn solve<E>(config: &super::Config, device: &wgpu::Device, queue: &wgpu::Queue, entropies_callback: Option<E>)
+pub(crate) fn solve<E>(config: &super::Config, device: &wgpu::Device, queue: &wgpu::Queue, entropies_callback: Option<EntropyCallback<E>>)
 where
 	E: FnMut(u64, &filter::PushConstants, &[types::Entropy]) + Send + Sync + 'static,
 {
@@ -141,18 +144,18 @@ where
 			let count = count_recv.recv_timeout(time::Duration::from_secs(5)).expect("Unable to acquire count from buffer");
 
 			// log buffers for debugging
-			// utils::inspect_buffer(device, &derivation_pass.output_buffer, move |data: &[types::GpuSha512Hash]| {
-			// 	println!("Buffer[derivation::output_buffer] = {}", count);
-			// 	let zeroed: types::GpuSha512Hash = bytemuck::Zeroable::zeroed();
+			utils::inspect_buffer(device, &derivation_pass.output_buffer, move |data: &[types::GpuSha512Hash]| {
+				println!("Buffer[derivation::output_buffer] = {}", count);
+				let zeroed: types::GpuSha512Hash = bytemuck::Zeroable::zeroed();
 
-			// 	for (idx, i) in data.iter().take(count as _).enumerate() {
-			// 		if i == &zeroed {
-			// 			continue;
-			// 		}
+				for (idx, i) in data.iter().take(count as _).enumerate() {
+					if i == &zeroed {
+						continue;
+					}
 
-			// 		println!("[{}] = {:?}", idx, i);
-			// 	}
-			// });
+					println!("[{}] = {:?}", idx, i);
+				}
+			});
 
 			if count >= MAX_RESULTS_FOUND as _ {
 				panic!("More than {} results found: {}", MAX_RESULTS_FOUND, count);
@@ -171,7 +174,7 @@ where
 
 				// call callback
 				let mut c = callback_.lock().unwrap();
-				c(step, &constants_, &results[..(count as usize)]);
+				c.0(step, &constants_, &results[..(count as usize)]);
 
 				drop(range);
 				entropies_dest_.unmap();

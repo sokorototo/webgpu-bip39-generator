@@ -60,11 +60,11 @@ async fn main() {
 	let range = 1 + (config.range.1 - config.range.0) / solver::THREADS_PER_DISPATCH as u64;
 
 	// solve
-	let _entropies_callback = move |step: u64, _: &solver::passes::filter::PushConstants, e: &[solver::types::Entropy]| {
+	let entropies_callback = move |step: u64, _: &solver::passes::filter::PushConstants, e: &[solver::types::Entropy]| {
 		let iteration = (step / solver::THREADS_PER_DISPATCH as u64) + 1;
 		println!("[{:03}/{:03}]: {} Entropies Found in {:?}", iteration, range, e.len(), then.elapsed());
 		then = std::time::Instant::now();
 	};
 
-	solver::solve::<fn(u64, &solver::passes::filter::PushConstants, &[solver::types::Entropy])>(&config, &device, &queue, None);
+	solver::solve(&config, &device, &queue, Some(solver::EntropyCallback(entropies_callback)));
 }
