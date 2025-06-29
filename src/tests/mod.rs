@@ -35,7 +35,7 @@ fn verify_mnemonic_phrases() {
 		// verifies outputs from solver
 		for match_ in matches {
 			let match_ = [constants.words[0], match_[0], match_[1], constants.words[3]];
-			let bytes: &[u8] = bytemuck::cast_slice(match_);
+			let bytes: &[u8] = bytemuck::cast_slice(&match_);
 			let mnemonic = bip39::Mnemonic::from_entropy_in(bip39::Language::English, bytes).unwrap();
 			assert_eq!(constants.checksum as u8, mnemonic.checksum(), "Extracted Mnemonic Sequence has invalid checksum");
 
@@ -44,7 +44,7 @@ fn verify_mnemonic_phrases() {
 		}
 	};
 
-	solver::solve(&config, &device, &queue, Some(callback));
+	solver::solve(&config, &device, &queue, Some(solver::EntropyCallback(callback)));
 }
 
 #[test]
