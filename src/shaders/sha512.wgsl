@@ -41,47 +41,37 @@ const K = array<u64, 80>(
     0x5fcb6fab3ad6faeclu, 0x6c44198c4a475817lu
 );
 
-fn ROR(x: u64, n: u64) -> u64 { return u64(x >> u32(n)) | (x << (64u - u32(n))); }
+fn ROR(x: u64, n: u32) -> u64 { return u64(x >> n) | (x << (64u - n)); }
 
-fn S0(x: u64) -> u64 { return (ROR(x, 28) ^ ROR(x, 34) ^ ROR(x, 39)); }
-fn S1(x: u64) -> u64 { return (ROR(x, 14) ^ ROR(x, 18) ^ ROR(x, 41)); }
-fn G0(x: u64) -> u64 { return (ROR(x, 1) ^ ROR(x, 8) ^ (x >> 7)); }
-fn G1(x: u64) -> u64 { return (ROR(x, 19) ^ ROR(x, 61) ^ (x >> 6)); }
-
-// NOTE: modifies d and t
-fn ROUND(i: u32, a: u64, b: u64, c: u64, d: u64, e: u64, f: u64, g: u64, h: u64, W: ptr<function, array<u64, 80>>) -> array<u64, 2> {
-    var t: u64 = h + S1(e) + (g ^ (e & (f ^ g))) + K[i] + W[i];
-
-    var d2: u64 = d + t;
-    var h2: u64 = t + S0(a) + (((a | b) & c) | (a & b));
-
-    return array<u64, 2>(d2, h2);
-}
+fn S0(x: u64) -> u64 { return ROR(x, 28u) ^ ROR(x, 34u) ^ ROR(x, 39u); }
+fn S1(x: u64) -> u64 { return ROR(x, 14u) ^ ROR(x, 18u) ^ ROR(x, 41u); }
+fn G0(x: u64) -> u64 { return ROR(x, 1u) ^ ROR(x, 8u) ^ (x >> 7u); }
+fn G1(x: u64) -> u64 { return ROR(x, 19u) ^ ROR(x, 61u) ^ (x >> 6u); }
 
 fn store_be64(ctx: ptr<function, SHA512_CTX>, x: u64, offset: u32) {
-    (*ctx).buffer[0 + offset] = u32((x >> 56) & 0xff);
-    (*ctx).buffer[1 + offset] = u32((x >> 48) & 0xff);
-    (*ctx).buffer[2 + offset] = u32((x >> 40) & 0xff);
-    (*ctx).buffer[3 + offset] = u32((x >> 32) & 0xff);
-    (*ctx).buffer[4 + offset] = u32((x >> 24) & 0xff);
-    (*ctx).buffer[5 + offset] = u32((x >> 16) & 0xff);
-    (*ctx).buffer[6 + offset] = u32((x >> 8) & 0xff);
-    (*ctx).buffer[7 + offset] = u32((x >> 0) & 0xff);
+    (*ctx).buffer[offset] = u32(x >> 56);
+    (*ctx).buffer[1 + offset] = u32(x >> 48);
+    (*ctx).buffer[2 + offset] = u32(x >> 40);
+    (*ctx).buffer[3 + offset] = u32(x >> 32);
+    (*ctx).buffer[4 + offset] = u32(x >> 24);
+    (*ctx).buffer[5 + offset] = u32(x >> 16);
+    (*ctx).buffer[6 + offset] = u32(x >> 8);
+    (*ctx).buffer[7 + offset] = u32(x);
 }
 
-fn store_be64_out(p: ptr<function, array<u32, SHA512_HASH_LENGTH>>, x: u64, offset: u32) {
-    p[0 + offset] = u32((x >> 56) & 0xff);
-    p[1 + offset] = u32((x >> 48) & 0xff);
-    p[2 + offset] = u32((x >> 40) & 0xff);
-    p[3 + offset] = u32((x >> 32) & 0xff);
-    p[4 + offset] = u32((x >> 24) & 0xff);
-    p[5 + offset] = u32((x >> 16) & 0xff);
-    p[6 + offset] = u32((x >> 8) & 0xff);
-    p[7 + offset] = u32((x >> 0) & 0xff);
+fn store_be64_out(p: ptr<function, array<u32, SHA512_MAX_INPUT_SIZE>>, x: u64, offset: u32) {
+    p[offset] = u32(x >> 56);
+    p[1 + offset] = u32(x >> 48);
+    p[2 + offset] = u32(x >> 40);
+    p[3 + offset] = u32(x >> 32);
+    p[4 + offset] = u32(x >> 24);
+    p[5 + offset] = u32(x >> 16);
+    p[6 + offset] = u32(x >> 8);
+    p[7 + offset] = u32(x);
 }
 
 fn load_be64_ctx(ctx: ptr<function, SHA512_CTX>, offset: u32) -> u64 {
-    return (u64((*ctx).buffer[0 + offset]) << 56) | (u64((*ctx).buffer[1 + offset]) << 48) | (u64((*ctx).buffer[2 + offset]) << 40) | (u64((*ctx).buffer[3 + offset]) << 32) | (u64((*ctx).buffer[4 + offset]) << 24) | (u64((*ctx).buffer[5 + offset]) << 16) | (u64((*ctx).buffer[6 + offset]) << 8) | (u64((*ctx).buffer[7 + offset]));
+    return (u64((*ctx).buffer[offset]) << 56) | (u64((*ctx).buffer[1 + offset]) << 48) | (u64((*ctx).buffer[2 + offset]) << 40) | (u64((*ctx).buffer[3 + offset]) << 32) | (u64((*ctx).buffer[4 + offset]) << 24) | (u64((*ctx).buffer[5 + offset]) << 16) | (u64((*ctx).buffer[6 + offset]) << 8) | (u64((*ctx).buffer[7 + offset]));
 }
 
 fn compress_ctx(ctx: ptr<function, SHA512_CTX>) {
@@ -97,9 +87,23 @@ fn compress_ctx(ctx: ptr<function, SHA512_CTX>) {
     var g: u64 = (*ctx).state[6];
     var h: u64 = (*ctx).state[7];
 
-    for (var i = 0u; i < 16; i++) {
-        W[i] = load_be64_ctx(ctx, 8u * i);
-    };
+    // manually unrolled for better performance
+    W[0] = load_be64_ctx(ctx, 0);
+    W[1] = load_be64_ctx(ctx, 8u);
+    W[2] = load_be64_ctx(ctx, 16u);
+    W[3] = load_be64_ctx(ctx, 24u);
+    W[4] = load_be64_ctx(ctx, 32u);
+    W[5] = load_be64_ctx(ctx, 40u);
+    W[6] = load_be64_ctx(ctx, 48u);
+    W[7] = load_be64_ctx(ctx, 56u);
+    W[8] = load_be64_ctx(ctx, 64u);
+    W[9] = load_be64_ctx(ctx, 72u);
+    W[10] = load_be64_ctx(ctx, 80u);
+    W[11] = load_be64_ctx(ctx, 88u);
+    W[12] = load_be64_ctx(ctx, 96u);
+    W[13] = load_be64_ctx(ctx, 104u);
+    W[14] = load_be64_ctx(ctx, 112u);
+    W[15] = load_be64_ctx(ctx, 120u);
 
     for (var i = 16; i < 80; i++) {
         W[i] = W[i-16] + G0(W[i-15]) + W[i-7] + G1(W[i-2]);
@@ -129,9 +133,8 @@ fn compress_ctx(ctx: ptr<function, SHA512_CTX>) {
     (*ctx).state[7] += h;
 }
 
-
 fn load_be64(buf: ptr<function, array<u32, SHA512_MAX_INPUT_SIZE>>, offset: u32) -> u64 {
-    return (u64(buf[0 + offset]) << 56) | (u64(buf[1 + offset]) << 48) | (u64(buf[2 + offset]) << 40) | (u64(buf[3 + offset]) << 32) | (u64(buf[4 + offset]) << 24) | (u64(buf[5 + offset]) << 16) | (u64(buf[6 + offset]) << 8) | (u64(buf[7 + offset]));
+    return (u64(buf[offset]) << 56) | (u64(buf[1 + offset]) << 48) | (u64(buf[2 + offset]) << 40) | (u64(buf[3 + offset]) << 32) | (u64(buf[4 + offset]) << 24) | (u64(buf[5 + offset]) << 16) | (u64(buf[6 + offset]) << 8) | (u64(buf[7 + offset]));
 }
 
 fn sha512_compress(ctx: ptr<function, SHA512_CTX>, data: ptr<function, array<u32, SHA512_MAX_INPUT_SIZE>>, offset: u32) {
@@ -147,9 +150,23 @@ fn sha512_compress(ctx: ptr<function, SHA512_CTX>, data: ptr<function, array<u32
     var g: u64 = (*ctx).state[6];
     var h: u64 = (*ctx).state[7];
 
-    for (var i = 0u; i < 16; i++) {
-        W[i] = load_be64(data, 8u * i);
-    };
+    // manually unrolled for better performance
+    W[0] = load_be64(data, 0u);
+    W[1] = load_be64(data, 8u);
+    W[2] = load_be64(data, 16u);
+    W[3] = load_be64(data, 24u);
+    W[4] = load_be64(data, 32u);
+    W[5] = load_be64(data, 40u);
+    W[6] = load_be64(data, 48u);
+    W[7] = load_be64(data, 56u);
+    W[8] = load_be64(data, 64u);
+    W[9] = load_be64(data, 72u);
+    W[10] = load_be64(data, 80u);
+    W[11] = load_be64(data, 88u);
+    W[12] = load_be64(data, 96u);
+    W[13] = load_be64(data, 104u);
+    W[14] = load_be64(data, 112u);
+    W[15] = load_be64(data, 120u);
 
     for (var i = 16; i < 80; i++) {
         W[i] = W[i-16] + G0(W[i-15]) + W[i-7] + G1(W[i-2]);
@@ -230,8 +247,8 @@ fn sha512_update(ctx: ptr<function, SHA512_CTX>, data: ptr<function, array<u32, 
     (*ctx).fill = len;
 }
 
-fn sha512_done(ctx: ptr<function, SHA512_CTX>) -> array<u32, SHA512_HASH_LENGTH> {
-    var out: array<u32, SHA512_HASH_LENGTH> = array<u32, SHA512_HASH_LENGTH>();
+// NOTE: out is oversized to avoid excessive copying in pbkdf2
+fn sha512_done(ctx: ptr<function, SHA512_CTX>, out: ptr<function, array<u32, SHA512_MAX_INPUT_SIZE>>) -> u32 {
     var rest = u64((*ctx).fill);
 
 	// append 1-bit to signal end of data
@@ -254,18 +271,33 @@ fn sha512_done(ctx: ptr<function, SHA512_CTX>) -> array<u32, SHA512_HASH_LENGTH>
 
     compress_ctx(ctx);
 
-    for (var i = 0u; i < 8; i++) {
-        store_be64_out(&out, (*ctx).state[i], 8 * i);
-    }
+    // unrolled
+    store_be64_out(out, (*ctx).state[0], 0);
+    store_be64_out(out, (*ctx).state[1], 8);
+    store_be64_out(out, (*ctx).state[2], 16);
+    store_be64_out(out, (*ctx).state[3], 24);
+    store_be64_out(out, (*ctx).state[4], 32);
+    store_be64_out(out, (*ctx).state[5], 40);
+    store_be64_out(out, (*ctx).state[6], 48);
+    store_be64_out(out, (*ctx).state[7], 56);
 
-    return out;
+    return SHA512_HASH_LENGTH;
 }
 
 fn sha512(data: ptr<function, array<u32, SHA512_MAX_INPUT_SIZE>>, len: u32) -> array<u32, SHA512_HASH_LENGTH> {
     var ctx: SHA512_CTX;
+    var out: array<u32, SHA512_HASH_LENGTH> = array<u32, SHA512_HASH_LENGTH>();
 
     sha512_init(&ctx);
     sha512_update(&ctx, data, len);
 
-    return sha512_done(&ctx);
+    // oversized output buffer
+    var scratch: array<u32, 128> = array<u32, 128>();
+    sha512_done(&ctx, &scratch);
+
+    for (var i = 0u; i < SHA512_HASH_LENGTH; i++) {
+        out[i] = scratch[i];
+    }
+
+    return out;
 }

@@ -21,11 +21,13 @@ fn pbkdf2(bytes: &[u8]) -> [u8; 64] {
 fn verify_mnemonic_phrases() {
 	let config = Config {
 		stencil: ["zoo", "zoo", "zoo", "zoo", "_", "_", "_", "_", "zoo", "zoo", "zoo", "zoo"].map(|s| s.to_string()).into_iter().collect(),
-		range: (0, 2096),
+		range: (0, 2048),
 		address: parse_address("1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa").unwrap(),
 	};
 
 	// init devices
+	// let _ = unsafe { libloading::Library::new("renderdoc.dll").expect("libloading call failed") };
+	// let mut rd: renderdoc::RenderDoc<renderdoc::V130> = renderdoc::RenderDoc::new().unwrap();
 	let (device, queue) = pollster::block_on(device::init());
 
 	// verify outputs
@@ -42,7 +44,9 @@ fn verify_mnemonic_phrases() {
 		}
 	};
 
+	// rd.start_frame_capture(null(), null()); // compute shader with only one device active
 	solver::solve(&config, &device, &queue, Some(callback));
+	// rd.end_frame_capture(null(), null());
 }
 
 #[test]
@@ -316,7 +320,13 @@ fn test_pbkdf2() {
 
 	// submit commands
 	let commands = encoder.finish();
+	let then = std::time::Instant::now();
 	queue.submit([commands]);
+
+	// wait for tasks to finish
+	device.poll(wgpu::PollType::Wait).unwrap();
+	let elapsed = then.elapsed();
+	println!("PBKDF2 Hashing took: {:?}", elapsed / inputs.len() as u32);
 
 	// read outputs buffer
 	output_buffer.clone().map_async(wgpu::MapMode::Read, .., move |res| {

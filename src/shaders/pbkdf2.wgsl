@@ -10,12 +10,12 @@ fn hmac_sha512_init(ctx: ptr<function, SHA512_CTX>, key: ptr<function, array<u32
         pad[i] = key[i] ^ IPAD;
     }
 
-	 // init sha512
+	// init sha512
     sha512_init(ctx);
     sha512_update(ctx, &pad, BLOCK_SIZE);
 }
 
-fn hmac_sha512_done(ctx: ptr<function, SHA512_CTX>, key: ptr<function, array<u32, BLOCK_SIZE>>) -> array<u32, SHA512_HASH_LENGTH> {
+fn hmac_sha512_done(ctx: ptr<function, SHA512_CTX>, key: ptr<function, array<u32, BLOCK_SIZE>>, out: ptr<function, array<u32, 128>>) {
     var pad = array<u32, SHA512_MAX_INPUT_SIZE>();
 
    //  construct outer padding
@@ -24,22 +24,22 @@ fn hmac_sha512_done(ctx: ptr<function, SHA512_CTX>, key: ptr<function, array<u32
     }
 
     // finalize inner hash
-    var ihash = sha512_done(ctx);
+    var ihash = array<u32, 128>();
+    sha512_done(ctx, &ihash);
 
     sha512_init(ctx);
     sha512_update(ctx, &pad, BLOCK_SIZE);
 
-	 // re-use pad buffer to hash pad
-    for (var i = 0; i < SHA512_HASH_LENGTH; i++) {
-        pad[i] = ihash[i];
-    }
-    sha512_update(ctx, &pad, SHA512_HASH_LENGTH);
-
-    return sha512_done(ctx);
+    // oversized inner buffer to avoid copying
+    sha512_update(ctx, &ihash, SHA512_HASH_LENGTH);
+    sha512_done(ctx, out);
 }
 
 // We know salt is "mnemonic" LOL
-fn pbkdf2(passwd: ptr<function, array<u32, SHA512_MAX_INPUT_SIZE>>, passlen: u32, salt: ptr<function, array<u32, SHA512_MAX_INPUT_SIZE>>, saltlen: u32, iter: u32) -> array<u32, SHA512_HASH_LENGTH> {
+fn pbkdf2(
+    passwd: ptr<function, array<u32, SHA512_MAX_INPUT_SIZE>>, passlen: u32,
+    salt: ptr<function, array<u32, SHA512_MAX_INPUT_SIZE>>, saltlen: u32,
+    iter: u32, out: ptr<function, array<u32, SHA512_HASH_LENGTH>>) {
     // cache hmac-state
     var cached: SHA512_CTX;
     hmac_sha512_init(&cached, passwd);
@@ -60,18 +60,17 @@ fn pbkdf2(passwd: ptr<function, array<u32, SHA512_MAX_INPUT_SIZE>>, passlen: u32
     sha512_update(&hmac, &scratch, 4);
 
     // start digest
-    var U = hmac_sha512_done(&hmac, passwd);
+    var U = array<u32, SHA512_MAX_INPUT_SIZE>();
+    hmac_sha512_done(&hmac, passwd, &U);
     var F = U;
 
     for (var j = 1u; j < iter; j++) {
+        // reset hmac state to cached
         hmac = cached;
 
-        for (var i = 0u; i < SHA512_HASH_LENGTH; i++) {
-            scratch[i] = U[i];
-        }
-
-        sha512_update(&hmac, &scratch, SHA512_HASH_LENGTH);
-        U = hmac_sha512_done(&hmac, passwd);
+        // update hmac with previous hash
+        sha512_update(&hmac, &U, SHA512_HASH_LENGTH);
+        hmac_sha512_done(&hmac, passwd, &U);
 
         for (var k = 0u; k < SHA512_HASH_LENGTH; k += 8) {
             F[k] ^= U[k];
@@ -85,5 +84,8 @@ fn pbkdf2(passwd: ptr<function, array<u32, SHA512_MAX_INPUT_SIZE>>, passlen: u32
         }
     }
 
-    return F;
+    // write final hash to output
+    for (var i = 0u; i < SHA512_HASH_LENGTH; i++) {
+        out[i] = F[i];
+    };
 }
