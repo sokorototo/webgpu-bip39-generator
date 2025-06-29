@@ -3,6 +3,7 @@ const WORKGROUP_SIZE = 256; // 2 ^ 8
 const P2PKH_ADDRESS_SIZE = 20;
 
 const MAX_RESULTS_FOUND = 1398101;
+const WORDS = 4;
 const MISSING = 2;
 
 // same as filter stage, most fields ignored
@@ -30,7 +31,7 @@ struct Word {
 var<storage, read_write> output: array<array<u32, SHA512_HASH_LENGTH>, MAX_RESULTS_FOUND>;
 
 // bind bip39::words or embed as constant
-fn entropy_to_indices(entropy: array<u32, CHUNKS>) -> array<u32, 12> {
+fn entropy_to_indices(entropy: array<u32, WORDS>) -> array<u32, 12> {
     var out = array<u32, 12>();
 
     // 1st chunk
@@ -88,8 +89,8 @@ fn indices_to_word(indices: array<u32, 12>, dest: ptr<function, array<u32, MNEMO
 @compute @workgroup_size(WORKGROUP_SIZE)
 fn main(@builtin(global_invocation_id) global: vec3<u32>) {
     // generate indices for mnemonics words from entropy
-    var found = matches[global.x];
-    var entropy = array<u32, 4>(constants.word0, found[0], found[1], constants.word3);
+    var match_ = matches[global.x];
+    var entropy = array<u32, WORDS>(constants.word0, match_[0], match_[1], constants.word3);
     var indices = entropy_to_indices(entropy);
 
     // extract word bytes and derive master extended key
