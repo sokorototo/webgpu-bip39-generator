@@ -1,3 +1,4 @@
+#![allow(unused)]
 use std::fmt::Debug;
 
 pub(crate) fn inspect_buffer<T: bytemuck::Pod + Debug, F: Fn(&[T]) + Send + Sync + 'static>(device: &wgpu::Device, buffer: &wgpu::Buffer, callback: F) {

@@ -333,13 +333,10 @@ fn test_pbkdf2() {
 
 	// submit commands
 	let commands = encoder.finish();
-	let then = std::time::Instant::now();
 	queue.submit([commands]);
 
 	// wait for tasks to finish
 	device.poll(wgpu::PollType::Wait).unwrap();
-	let elapsed = then.elapsed();
-	println!("PBKDF2 Hashing took: {:?}", elapsed / inputs.len() as u32);
 
 	// read outputs buffer
 	output_buffer.clone().map_async(wgpu::MapMode::Read, .., move |res| {

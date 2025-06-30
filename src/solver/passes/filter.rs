@@ -41,7 +41,7 @@ pub(crate) struct FilterPass {
 }
 
 impl FilterPass {
-	pub(crate) const WORKGROUP_SIZE: u32 = 256; // 2 ^ 6
+	pub(crate) const WORKGROUP_SIZE: u32 = 256; // 2 ^ 8
 	pub(crate) const DISPATCH_SIZE_X: u32 = 256; // 2 ^ 8
 	pub(crate) const DISPATCH_SIZE_Y: u32 = 256; // 2 ^ 8
 
@@ -66,7 +66,7 @@ impl FilterPass {
 
 		let matches_buffer = device.create_buffer(&wgpu::BufferDescriptor {
 			label: Some("solver_matches"),
-			size: (std::mem::size_of::<types::Match>() * MAX_RESULTS_FOUND as usize) as wgpu::BufferAddress,
+			size: (std::mem::size_of::<[types::Match; MAX_RESULTS_FOUND]>() as usize) as wgpu::BufferAddress,
 			usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
 			mapped_at_creation: false,
 		});

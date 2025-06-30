@@ -38,7 +38,7 @@ pub(crate) enum SolverData {
 
 #[allow(unused)]
 pub(crate) fn solve<const F: u8>(config: &super::Config, device: &wgpu::Device, queue: &wgpu::Queue, sender: mpsc::Sender<SolverUpdate>) {
-	// initialize state
+	// initialize destination buffers
 	let matches_dest = (F & MATCHES_FLAG == F).then(|| {
 		device.create_buffer(&wgpu::BufferDescriptor {
 			label: Some("solver_matches_destination"),
@@ -48,10 +48,10 @@ pub(crate) fn solve<const F: u8>(config: &super::Config, device: &wgpu::Device, 
 		})
 	});
 
-	let derivations_dest = (F & MATCHES_FLAG == F).then(|| {
+	let derivations_dest = (F & DERIVATIONS_FLAG == F).then(|| {
 		device.create_buffer(&wgpu::BufferDescriptor {
-			label: Some("solver_matches_destination"),
-			size: (std::mem::size_of::<[types::Match; MAX_RESULTS_FOUND]>()) as wgpu::BufferAddress,
+			label: Some("solver_derivations_destination"),
+			size: (std::mem::size_of::<[types::GpuSha512Hash; MAX_RESULTS_FOUND]>()) as wgpu::BufferAddress,
 			usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
 			mapped_at_creation: false,
 		})
@@ -103,16 +103,9 @@ pub(crate) fn solve<const F: u8>(config: &super::Config, device: &wgpu::Device, 
 			pass.dispatch_workgroups(filter::FilterPass::DISPATCH_SIZE_X.min(dispatch), (dispatch / filter::FilterPass::DISPATCH_SIZE_Y).max(1), 1);
 		}
 
-		// if entropies are requested, copy results to destination buffer
-		if let Some(matches_dest) = derivations_dest.as_ref() {
-			// queue read results from derivation pass
-			encoder.copy_buffer_to_buffer(
-				&filter_pass.matches_buffer,
-				0,
-				&matches_dest,
-				0,
-				(std::mem::size_of::<[types::Match; MAX_RESULTS_FOUND]>()) as wgpu::BufferAddress,
-			);
+		// queue read results from filter pass
+		if let Some(dest) = matches_dest.as_ref() {
+			encoder.copy_buffer_to_buffer(&filter_pass.matches_buffer, 0, &dest, 0, (std::mem::size_of::<[types::Match; MAX_RESULTS_FOUND]>()) as wgpu::BufferAddress);
 		};
 
 		{
@@ -128,8 +121,12 @@ pub(crate) fn solve<const F: u8>(config: &super::Config, device: &wgpu::Device, 
 
 			// dispatch workgroups for exact results produced by filter pass
 			pass.dispatch_workgroups_indirect(&filter_pass.dispatch_buffer, 0);
-			// pass.dispatch_workgroups(64, 1, 1);
 		}
+
+		// queue read results from derivation pass
+		if let Some(dest) = derivations_dest.as_ref() {
+			encoder.copy_buffer_to_buffer(&derivation_pass.output_buffer, 0, &dest, 0, (std::mem::size_of::<[types::Match; MAX_RESULTS_FOUND]>()) as wgpu::BufferAddress);
+		};
 
 		// submit commands
 		let commands = encoder.finish();
@@ -170,21 +167,7 @@ pub(crate) fn solve<const F: u8>(config: &super::Config, device: &wgpu::Device, 
 		}
 
 		// send entropies if requested
-		if let Some(matches_dest) = derivations_dest.as_ref() {
-			// // log buffers for debugging
-			// utils::inspect_buffer(device, &derivation_pass.output_buffer, move |data: &[types::GpuSha512Hash]| {
-			// 	println!("Buffer[derivation::output_buffer] = {}", matches_count);
-			// 	let zeroed: types::GpuSha512Hash = bytemuck::Zeroable::zeroed();
-
-			// 	for (idx, i) in data.iter().take(matches_count as _).enumerate() {
-			// 		if i == &zeroed || idx % 8 != 0 {
-			// 			continue;
-			// 		}
-
-			// 		println!("[{}] = {:?}", idx, i);
-			// 	}
-			// });
-
+		if let Some(matches_dest) = matches_dest.as_ref() {
 			// map results_destination
 			let matches_dest_ = matches_dest.clone();
 			let sender_ = sender.clone();
