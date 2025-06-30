@@ -81,6 +81,8 @@ fn verify_derived_hashes() {
 		let mut map = std::collections::BTreeMap::new();
 		let mut processed = 0;
 
+		let null_hash: solver::types::GpuSha512Hash = bytemuck::Zeroable::zeroed();
+
 		// verifies outputs from solver
 		while let Ok(update) = receiver.recv() {
 			match update.data {
@@ -90,6 +92,16 @@ fn verify_derived_hashes() {
 				solver::SolverData::Derivations { hashes, .. } => {
 					let matches = map.remove(&update.step).unwrap();
 					assert_eq!(matches.len(), hashes.len(), "Derivation Stage produced an incorrect number of matches");
+
+					for (idx, (hash, match_)) in hashes.iter().zip(matches.iter()).enumerate() {
+						if hash == &null_hash {
+							// null-hash baby!
+							continue;
+						}
+
+						let hex = hex::encode(&hash.map(|s| s as u8));
+						println!("[{}]: Match = {:?}, Hash = {}", idx, match_, hex);
+					}
 
 					processed += 1;
 				}
