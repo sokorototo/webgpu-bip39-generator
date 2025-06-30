@@ -18,7 +18,7 @@ fn pbkdf2(bytes: &[u8]) -> [u8; 64] {
 }
 
 #[test]
-fn verify_mnemonic_filters() {
+fn verify_filtered_mnemonics() {
 	let config = Config {
 		stencil: ["zoo", "zoo", "zoo", "zoo", "_", "_", "_", "_", "zoo", "zoo", "zoo", "zoo"].map(|s| s.to_string()).into_iter().collect(),
 		range: (0, 2048),
@@ -58,7 +58,48 @@ fn verify_mnemonic_filters() {
 		assert!(!set.is_empty(), "Entropies Set was empty");
 	});
 
-	solver::solve::<{ solver::MATCHES_FLAG }>(&config, &device, &queue, sender);
+	solver::solve::<{ solver::MATCHES_READ_FLAG }>(&config, &device, &queue, sender);
+	let _ = thread.join().unwrap();
+}
+
+#[test]
+fn verify_derived_hashes() {
+	let config = Config {
+		stencil: ["zoo", "zoo", "zoo", "zoo", "_", "_", "_", "_", "zoo", "zoo", "zoo", "zoo"].map(|s| s.to_string()).into_iter().collect(),
+		range: (0, 2048),
+		address: parse_address("1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa").unwrap(),
+	};
+
+	// init devices
+	let (device, queue) = pollster::block_on(device::init());
+
+	// start monitoring thread
+	let (sender, receiver) = std::sync::mpsc::channel::<solver::SolverUpdate>();
+
+	let thread = std::thread::spawn(move || {
+		// verify hash of entropies
+		let mut map = std::collections::BTreeMap::new();
+		let mut processed = 0;
+
+		// verifies outputs from solver
+		while let Ok(update) = receiver.recv() {
+			match update.data {
+				solver::SolverData::Matches { matches, .. } => {
+					map.insert(update.step, matches);
+				}
+				solver::SolverData::Derivations { hashes, .. } => {
+					let matches = map.remove(&update.step).unwrap();
+					assert_eq!(matches.len(), hashes.len(), "Derivation Stage produced an incorrect number of matches");
+
+					processed += 1;
+				}
+			};
+		}
+
+		assert!(processed > 0, "No Hashes Were Processed");
+	});
+
+	solver::solve::<{ solver::MATCHES_READ_FLAG | solver::HASHES_READ_FLAG }>(&config, &device, &queue, sender);
 	let _ = thread.join().unwrap();
 }
 

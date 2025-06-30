@@ -74,6 +74,6 @@ async fn main() {
 	});
 
 	// solve
-	solver::solve::<{ solver::MATCHES_FLAG }>(&config, &device, &queue, sender);
+	solver::solve::<{ solver::MATCHES_READ_FLAG }>(&config, &device, &queue, sender);
 	let _result = handle.join().expect("Monitoring thread experienced an error");
 }

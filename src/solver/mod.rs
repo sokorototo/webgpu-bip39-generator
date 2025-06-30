@@ -16,8 +16,8 @@ pub(crate) const THREADS_PER_DISPATCH: u32 = 16777216; // WORKGROUP_SIZE * DISPA
 pub(crate) const MAX_RESULTS_FOUND: usize = (THREADS_PER_DISPATCH as usize) / 12;
 
 // flags to enable sending certain data through the sender
-pub(crate) const MATCHES_FLAG: u8 = 0b0000_0001;
-pub(crate) const DERIVATIONS_FLAG: u8 = 0b0000_0010;
+pub(crate) const MATCHES_READ_FLAG: u8 = 0b0000_0001;
+pub(crate) const HASHES_READ_FLAG: u8 = 0b0000_0010;
 
 // represents data extracted from the solver
 pub(crate) struct SolverUpdate {
@@ -32,14 +32,14 @@ pub(crate) enum SolverData {
 	},
 	Derivations {
 		constants: passes::derivation::PushConstants,
-		derivations: Box<[types::GpuSha512Hash]>,
+		hashes: Box<[types::GpuSha512Hash]>,
 	},
 }
 
 #[allow(unused)]
 pub(crate) fn solve<const F: u8>(config: &super::Config, device: &wgpu::Device, queue: &wgpu::Queue, sender: mpsc::Sender<SolverUpdate>) {
 	// initialize destination buffers
-	let matches_dest = (F & MATCHES_FLAG == F).then(|| {
+	let matches_dest = (F & MATCHES_READ_FLAG == MATCHES_READ_FLAG).then(|| {
 		device.create_buffer(&wgpu::BufferDescriptor {
 			label: Some("solver_matches_destination"),
 			size: (std::mem::size_of::<[types::Match; MAX_RESULTS_FOUND]>()) as wgpu::BufferAddress,
@@ -48,9 +48,9 @@ pub(crate) fn solve<const F: u8>(config: &super::Config, device: &wgpu::Device, 
 		})
 	});
 
-	let derivations_dest = (F & DERIVATIONS_FLAG == F).then(|| {
+	let hashes_dest = (F & HASHES_READ_FLAG == HASHES_READ_FLAG).then(|| {
 		device.create_buffer(&wgpu::BufferDescriptor {
-			label: Some("solver_derivations_destination"),
+			label: Some("solver_hashes_destination"),
 			size: (std::mem::size_of::<[types::GpuSha512Hash; MAX_RESULTS_FOUND]>()) as wgpu::BufferAddress,
 			usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
 			mapped_at_creation: false,
@@ -124,7 +124,7 @@ pub(crate) fn solve<const F: u8>(config: &super::Config, device: &wgpu::Device, 
 		}
 
 		// queue read results from derivation pass
-		if let Some(dest) = derivations_dest.as_ref() {
+		if let Some(dest) = hashes_dest.as_ref() {
 			encoder.copy_buffer_to_buffer(&derivation_pass.output_buffer, 0, &dest, 0, (std::mem::size_of::<[types::Match; MAX_RESULTS_FOUND]>()) as wgpu::BufferAddress);
 		};
 
@@ -136,7 +136,7 @@ pub(crate) fn solve<const F: u8>(config: &super::Config, device: &wgpu::Device, 
 		device.poll(wgpu::PollType::Wait).unwrap();
 
 		// if any read flags are set, read `count` buffer
-		if (F & MATCHES_FLAG == F) || (F & DERIVATIONS_FLAG == F) {
+		if (F & MATCHES_READ_FLAG == MATCHES_READ_FLAG) || (F & HASHES_READ_FLAG == HASHES_READ_FLAG) {
 			let (count_send, count_recv) = sync::mpsc::sync_channel(1);
 			let _count_buffer = filter_pass.count_buffer.clone();
 
@@ -171,7 +171,6 @@ pub(crate) fn solve<const F: u8>(config: &super::Config, device: &wgpu::Device, 
 			// map results_destination
 			let matches_dest_ = matches_dest.clone();
 			let sender_ = sender.clone();
-			let constants_ = filter_pass.constants;
 
 			matches_dest.map_async(wgpu::MapMode::Read, .., move |res| {
 				res.unwrap();
@@ -192,6 +191,37 @@ pub(crate) fn solve<const F: u8>(config: &super::Config, device: &wgpu::Device, 
 
 				drop(range);
 				matches_dest_.unmap();
+			});
+
+			// poll map_async callback
+			device.poll(wgpu::PollType::Wait).unwrap();
+		}
+
+		// send hashes if requested
+		if let Some(hashes_dest) = hashes_dest.as_ref() {
+			// map results_destination
+			let hashes_dest_ = hashes_dest.clone();
+			let sender_ = sender.clone();
+
+			hashes_dest.map_async(wgpu::MapMode::Read, .., move |res| {
+				res.unwrap();
+
+				let mut range = hashes_dest_.get_mapped_range(..);
+				let results: &[types::GpuSha512Hash] = bytemuck::cast_slice(range.as_ref());
+
+				// send results
+				sender_
+					.send(SolverUpdate {
+						step,
+						data: SolverData::Derivations {
+							constants: derivation_pass.constants,
+							hashes: Box::from(&results[..matches_count as _]),
+						},
+					})
+					.expect("Unable to send results through channel");
+
+				drop(range);
+				hashes_dest_.unmap();
 			});
 
 			// poll map_async callback
