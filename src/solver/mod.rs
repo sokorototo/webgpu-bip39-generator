@@ -48,14 +48,14 @@ pub(crate) fn solve<const F: u8>(config: &super::Config, device: &wgpu::Device, 
 		})
 	});
 
-	let hashes_dest = (F & HASHES_READ_FLAG == HASHES_READ_FLAG).then(|| {
-		device.create_buffer(&wgpu::BufferDescriptor {
-			label: Some("solver_hashes_destination"),
-			size: (std::mem::size_of::<[types::GpuSha512Hash; MAX_RESULTS_FOUND]>()) as wgpu::BufferAddress,
-			usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
-			mapped_at_creation: false,
-		})
-	});
+	// let hashes_dest = (F & HASHES_READ_FLAG == HASHES_READ_FLAG).then(|| {
+	// 	device.create_buffer(&wgpu::BufferDescriptor {
+	// 		label: Some("solver_hashes_destination"),
+	// 		size: (std::mem::size_of::<[types::GpuSha512Hash; MAX_RESULTS_FOUND]>()) as wgpu::BufferAddress,
+	// 		usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+	// 		mapped_at_creation: false,
+	// 	})
+	// });
 
 	// initialize passes
 	let mut filter_pass = filter::FilterPass::new(device, config.stencil.iter().map(|s| s.as_str()));
@@ -124,9 +124,9 @@ pub(crate) fn solve<const F: u8>(config: &super::Config, device: &wgpu::Device, 
 		}
 
 		// queue read results from derivation pass
-		if let Some(dest) = hashes_dest.as_ref() {
-			encoder.copy_buffer_to_buffer(&derivation_pass.output_buffer, 0, &dest, 0, (std::mem::size_of::<[types::Match; MAX_RESULTS_FOUND]>()) as wgpu::BufferAddress);
-		};
+		// if let Some(dest) = hashes_dest.as_ref() {
+		// 	encoder.copy_buffer_to_buffer(&derivation_pass.output_buffer, 0, &dest, 0, (std::mem::size_of::<[types::Match; MAX_RESULTS_FOUND]>()) as wgpu::BufferAddress);
+		// };
 
 		// submit commands
 		let commands = encoder.finish();
@@ -198,15 +198,15 @@ pub(crate) fn solve<const F: u8>(config: &super::Config, device: &wgpu::Device, 
 		}
 
 		// send hashes if requested
-		if let Some(hashes_dest) = hashes_dest.as_ref() {
+		if (F & HASHES_READ_FLAG == HASHES_READ_FLAG) {
 			// map results_destination
-			let hashes_dest_ = hashes_dest.clone();
+			let hashes_src_ = derivation_pass.output_buffer.clone();
 			let sender_ = sender.clone();
 
-			hashes_dest.map_async(wgpu::MapMode::Read, .., move |res| {
+			derivation_pass.output_buffer.map_async(wgpu::MapMode::Read, .., move |res| {
 				res.unwrap();
 
-				let mut range = hashes_dest_.get_mapped_range(..);
+				let mut range = hashes_src_.get_mapped_range(..);
 				let results: &[types::GpuSha512Hash] = bytemuck::cast_slice(range.as_ref());
 
 				// send results
@@ -221,7 +221,7 @@ pub(crate) fn solve<const F: u8>(config: &super::Config, device: &wgpu::Device, 
 					.expect("Unable to send results through channel");
 
 				drop(range);
-				hashes_dest_.unmap();
+				hashes_src_.unmap();
 			});
 
 			// poll map_async callback
