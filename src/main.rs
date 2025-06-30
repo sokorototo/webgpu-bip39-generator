@@ -70,6 +70,15 @@ async fn main() {
 			let iteration = (update.step / solver::THREADS_PER_DISPATCH as u64) + 1;
 			println!("[{:03}/{:03}]: {} Entropies Found in {:?}", iteration, range, matches.len(), then.elapsed());
 			then = std::time::Instant::now();
+
+			// log every 32nd entropy
+			for (idx, match_) in matches.iter().enumerate() {
+				if idx % 32 != 0 {
+					continue;
+				}
+
+				println!("[{}] = {:?}", idx, match_);
+			}
 		}
 	});
 
