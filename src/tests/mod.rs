@@ -20,8 +20,11 @@ fn pbkdf2(bytes: &[u8]) -> [u8; 64] {
 #[test]
 fn verify_filtered_mnemonics() {
 	let config = Config {
-		stencil: ["zoo", "zoo", "zoo", "zoo", "_", "_", "_", "_", "zoo", "zoo", "zoo", "zoo"].map(|s| s.to_string()).into_iter().collect(),
-		range: (0, 2048),
+		stencil: ["elder", "resist", "rocket", "skill", "_", "_", "_", "_", "jungle", "zoo", "circle", "return"]
+			.map(|s| s.to_string())
+			.into_iter()
+			.collect(),
+		range: (0, 64),
 		address: parse_address("1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa").unwrap(),
 	};
 
@@ -65,8 +68,11 @@ fn verify_filtered_mnemonics() {
 #[test]
 fn verify_derived_hashes() {
 	let config = Config {
-		stencil: ["zoo", "zoo", "zoo", "zoo", "_", "_", "_", "_", "zoo", "zoo", "zoo", "zoo"].map(|s| s.to_string()).into_iter().collect(),
-		range: (0, 2048),
+		stencil: ["elder", "resist", "rocket", "skill", "_", "_", "_", "_", "jungle", "zoo", "circle", "return"]
+			.map(|s| s.to_string())
+			.into_iter()
+			.collect(),
+		range: (0, 64),
 		address: parse_address("1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa").unwrap(),
 	};
 
@@ -104,12 +110,48 @@ fn verify_derived_hashes() {
 						let bytes: &[u8] = bytemuck::cast_slice(&match_);
 						let mnemonic = bip39::Mnemonic::from_entropy_in(bip39::Language::English, bytes).unwrap();
 
-						let words = mnemonic.words().collect::<String>();
-						let cpu_hmac = pbkdf2(words.as_bytes());
+						fn emulated(entropy: [u32; 4], checksum: u32) -> [u32; 12] {
+							let entropy = entropy.map(|i| i.to_be());
+							let mut out = [0u32; 12];
+
+							// 1st chunk
+							out[0] = entropy[0] >> 21;
+							out[1] = (entropy[0] << 11) >> 21;
+							out[2] = ((entropy[0] << 22) >> 21) | (entropy[1] >> (32 - 1));
+
+							// 2nd chunk
+							out[3] = (entropy[1] << 1) >> 21;
+							out[4] = (entropy[1] << 12) >> 21;
+							out[5] = ((entropy[1] << 23) >> 21) | (entropy[2] >> (32 - 2));
+
+							// 3rd chunk
+							out[6] = (entropy[2] << 2) >> 21;
+							out[7] = (entropy[2] << 13) >> 21;
+							out[8] = ((entropy[2] << 24) >> 21) | (entropy[3] >> (32 - 3));
+
+							// 4th chunk + Entropy
+							out[9] = (entropy[3] << 3) >> 21;
+							out[10] = (entropy[3] << 14) >> 21;
+							out[11] = ((entropy[3] << 25) >> 21) | checksum;
+
+							return out;
+						}
+
+						// inspect generated word bytes
+						let cpu_indices = mnemonic.word_indices().collect::<Vec<_>>();
+						let emulated_indices = emulated(match_, constants.checksum);
+						let gpu_indices = &hash[..12];
+
+						println!(
+							"[{}]: Match = {:?}\nCpuIndices = {:?}\nEmuIndices = {:?}\nGpuIndices = {:?}\n",
+							idx, match_, cpu_indices, emulated_indices, gpu_indices
+						);
+
+						// let cpu_hmac = pbkdf2(words.as_bytes());
 
 						// print results
-						let gpu_hmac = hash.map(|s| s as u8);
-						println!("[{}]: Match = {:?}\nGpuHmac = {}\nCpuHmac = {}", idx, match_, hex::encode(&gpu_hmac), hex::encode(&cpu_hmac));
+						// let gpu_hmac = hash.map(|s| s as u8);
+						// println!("[{}]: Match = {:?}\nGpuHmac = {}\nCpuHmac = {}", idx, match_, hex::encode(&gpu_hmac), hex::encode(&cpu_hmac));
 					}
 
 					processed += 1;

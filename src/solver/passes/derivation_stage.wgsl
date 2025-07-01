@@ -30,29 +30,39 @@ struct Word {
 @group(0) @binding(3)
 var<storage, read_write> output: array<array<u32, SHA512_HASH_LENGTH>, MAX_RESULTS_FOUND>;
 
+fn swap_bytes(value: u32) -> u32 {
+    return ((value & 0xFF) << 24) | (((value >> 8) & 0xFF) << 16) | (((value >> 16) & 0xFF) << 8) | ((value >> 24) & 0xFF);
+}
+
 // bind bip39::words or embed as constant
 fn entropy_to_indices(entropy: array<u32, WORDS>) -> array<u32, 12> {
+    // swap to BE
+    var be_entropy = array<u32, 4>();
+    for (var i = 0u; i < 4u; i++) {
+        be_entropy[i] = swap_bytes(entropy[i]);
+    }
+
     var out = array<u32, 12>();
 
     // 1st chunk
-    out[0] = entropy[0] >> 21;
-    out[1] = (entropy[0] << 11) >> 21;
-    out[2] = ((entropy[0] << 22) >> 21) | (entropy[1] >> (32 - 1));
+    out[0] = be_entropy[0] >> 21;
+    out[1] = (be_entropy[0] << 11) >> 21;
+    out[2] = ((be_entropy[0] << 22) >> 21) | (be_entropy[1] >> (32 - 1));
 
     // 2nd chunk
-    out[3] = (entropy[1] << 1) >> 21;
-    out[4] = (entropy[1] << 12) >> 21;
-    out[5] = ((entropy[1] << 23) >> 21) | (entropy[2] >> (32 - 2));
+    out[3] = (be_entropy[1] << 1) >> 21;
+    out[4] = (be_entropy[1] << 12) >> 21;
+    out[5] = ((be_entropy[1] << 23) >> 21) | (be_entropy[2] >> (32 - 2));
 
     // 3rd chunk
-    out[6] = (entropy[2] << 2) >> 21;
-    out[7] = (entropy[2] << 13) >> 21;
-    out[8] = ((entropy[2] << 24) >> 21) | (entropy[3] >> (32 - 3));
+    out[6] = (be_entropy[2] << 2) >> 21;
+    out[7] = (be_entropy[2] << 13) >> 21;
+    out[8] = ((be_entropy[2] << 24) >> 21) | (be_entropy[3] >> (32 - 3));
 
     // 4th chunk + Entropy
-    out[9] = (entropy[3] << 3) >> 21;
-    out[10] = (entropy[3] << 14) >> 21;
-    out[11] = ((entropy[3] << 25) >> 21) | constants.checksum;
+    out[9] = (be_entropy[3] << 3) >> 21;
+    out[10] = (be_entropy[3] << 14) >> 21;
+    out[11] = ((be_entropy[3] << 25) >> 21) | constants.checksum;
 
     return out;
 }
@@ -103,14 +113,19 @@ fn main(@builtin(global_invocation_id) global: vec3<u32>) {
     let mnemonic_len = 8u;
 
     var salt = array<u32, SHA512_MAX_INPUT_SIZE>();
-    for (var i = 0; i < 8; i++) {
+    for (var i = 0u; i < mnemonic_len; i++) {
         salt[i] = mnemonic[i];
     }
 
     // TODO: avoid using an intermediate array, use storage buffer and index directly in functions
-    var master_key: array<u32, SHA512_HASH_LENGTH>;
-    pbkdf2(&word_bytes, length, &salt, mnemonic_len, 2048, &master_key);
+    // var master_key: array<u32, SHA512_HASH_LENGTH>;
+    // pbkdf2(&word_bytes, length, &salt, mnemonic_len, 2048, &master_key);
 
-    output[global.x] = master_key;
+    var scratch = array<u32, SHA512_HASH_LENGTH>();
+    for (var i = 0; i < 12; i++) {
+        scratch[i] = indices[i];
+    }
+
+    output[global.x] = scratch;
     // TODO: continue with derivation path
 }
