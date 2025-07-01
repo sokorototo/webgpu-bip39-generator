@@ -100,7 +100,7 @@ fn verify_derived_hashes() {
 						}
 
 						// verify hmac
-						let match_ = [constants.words[0], constants.words[1], match_, constants.words[3]];
+						let match_ = [constants.words[0], constants.words[1], *match_, constants.words[3]];
 						let bytes: &[u8] = bytemuck::cast_slice(&match_);
 						let mnemonic = bip39::Mnemonic::from_entropy_in(bip39::Language::English, bytes).unwrap();
 
