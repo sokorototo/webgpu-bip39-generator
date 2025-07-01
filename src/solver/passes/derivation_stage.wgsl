@@ -4,11 +4,11 @@ const P2PKH_ADDRESS_SIZE = 20;
 
 const MAX_RESULTS_FOUND = 1398101;
 const WORDS = 4;
-const MISSING = 2;
 
 // same as filter stage, most fields ignored
 struct PushConstants {
     word0: u32,
+    word1: u32,
     word3: u32,
     address: array<u32, P2PKH_ADDRESS_SIZE>,
     checksum: u32,
@@ -17,7 +17,7 @@ struct PushConstants {
 var<push_constant> constants: PushConstants;
 
 @group(0) @binding(1)
-var<storage, read> matches: array<array<u32, MISSING>, MAX_RESULTS_FOUND>;
+var<storage, read> matches: array<u32, MAX_RESULTS_FOUND>;
 
 @group(0) @binding(2) // complete list of bip39 words
 var<storage, read> word_list: array<Word, 2048>;
@@ -89,8 +89,9 @@ fn indices_to_word(indices: array<u32, 12>, dest: ptr<function, array<u32, MNEMO
 @compute @workgroup_size(WORKGROUP_SIZE)
 fn main(@builtin(global_invocation_id) global: vec3<u32>) {
     // generate indices for mnemonics words from entropy
-    var match_ = matches[global.x];
-    var entropy = array<u32, WORDS>(constants.word0, match_[0], match_[1], constants.word3);
+    let word_2 = matches[global.x];
+
+    var entropy = array<u32, WORDS>(constants.word0, constants.word1, word_2, constants.word3);
     var indices = entropy_to_indices(entropy);
 
     // extract word bytes and derive master extended key

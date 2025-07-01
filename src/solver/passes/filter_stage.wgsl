@@ -6,15 +6,12 @@ const DISPATCH_SIZE_Y = 256; // 2 ^ 8
 const THREAD_COUNT = 16777216; // WORKGROUP_SIZE * DISPATCH_SIZE_Y * DISPATCH_SIZE_X
 
 const MAX_RESULTS_FOUND = 1398101;
-const MISSING = 2;
 
 struct PushConstants {
     word0: u32,
     word1: u32,
-    word2: u32,
+    word2_partial: u32,
     word3: u32,
-    // increments from 2^10 to 2^32
-    entropy: u32,
     checksum: u32,
 };
 
@@ -27,7 +24,7 @@ var<storage, read_write> dispatch: array<u32, 3>;
 var<storage, read_write> count: atomic<u32>;
 
 @group(0) @binding(2)
-var<storage, read_write> matches: array<array<u32, MISSING>, MAX_RESULTS_FOUND>;
+var<storage, read_write> matches: array<u32, MAX_RESULTS_FOUND>;
 
 // TODO: Compress cryptographic functions from sparse to dense u32s
 
@@ -42,21 +39,18 @@ fn main(
         return;
     }
 
-    // word[1]: lower 20 bits of entropy come from push_constants::entropy, upper 12 bits are known
-    var combined_2 = constants.word1 | constants.entropy;
-
     // word[2]: upper 24 bits of entropy come from global index, lower 8 bits are known
-    var entropy_3 = (local.x << 16) | (workgroup_id.y << 8) | workgroup_id.x;
-    var combined_3 = constants.word2 | (entropy_3 << 8);
+    var entropy_2 = (local.x << 16) | (workgroup_id.y << 8) | workgroup_id.x;
+    var word_2 = constants.word2_partial | (entropy_2 << 8);
 
     // verify mnemonic checksum
-    var entropy = array<u32, 4>(constants.word0, combined_2, combined_3, constants.word3);
+    var entropy = array<u32, 4>(constants.word0, constants.word1, word_2, constants.word3);
     var short256 = short256(entropy);
 
     // if entropy matches, queue for next stage
     if short256 >> 4 == constants.checksum {
         var index = atomicAdd(&count, 1u);
-        matches[index] = array<u32, MISSING>(combined_2, combined_3);
+        matches[index] = word_2;
 
         // update matches count
         dispatch[0] = (index + 1);

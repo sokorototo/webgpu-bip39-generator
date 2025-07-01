@@ -43,7 +43,7 @@ fn verify_filtered_mnemonics() {
 
 			// verify constants
 			for match_ in matches {
-				let match_ = [constants.words[0], match_[0], match_[1], constants.words[3]];
+				let match_ = [constants.words[0], constants.words[1], match_, constants.words[3]];
 				let bytes: &[u8] = bytemuck::cast_slice(&match_);
 
 				let mnemonic = bip39::Mnemonic::from_entropy_in(bip39::Language::English, bytes).unwrap();

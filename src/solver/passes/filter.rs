@@ -5,7 +5,6 @@ use wgpu::util::DeviceExt;
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub(crate) struct PushConstants {
 	pub(crate) words: [u32; 4],
-	pub(crate) entropy: u32,
 	pub(crate) checksum: u32,
 }
 
@@ -26,7 +25,6 @@ impl PushConstants {
 		PushConstants {
 			words,
 			checksum: mnemonic.checksum() as _,
-			entropy: 0,
 		}
 	}
 }
@@ -66,7 +64,7 @@ impl FilterPass {
 
 		let matches_buffer = device.create_buffer(&wgpu::BufferDescriptor {
 			label: Some("solver_matches"),
-			size: (std::mem::size_of::<[types::Match; MAX_RESULTS_FOUND]>() as usize) as wgpu::BufferAddress,
+			size: (std::mem::size_of::<[types::Word2; MAX_RESULTS_FOUND]>() as usize) as wgpu::BufferAddress,
 			usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
 			mapped_at_creation: false,
 		});
