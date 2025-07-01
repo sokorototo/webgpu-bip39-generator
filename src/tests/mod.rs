@@ -68,7 +68,7 @@ fn verify_filtered_mnemonics() {
 #[test]
 fn verify_derived_hashes() {
 	let config = Config {
-		stencil: ["elder", "resist", "rocket", "skill", "_", "_", "_", "_", "jungle", "zoo", "circle", "return"]
+		stencil: ["abandon", "abandon", "rocket", "skill", "_", "_", "_", "_", "jungle", "zoo", "circle", "return"]
 			.map(|s| s.to_string())
 			.into_iter()
 			.collect(),
@@ -110,42 +110,19 @@ fn verify_derived_hashes() {
 						let bytes: &[u8] = bytemuck::cast_slice(&match_);
 						let mnemonic = bip39::Mnemonic::from_entropy_in(bip39::Language::English, bytes).unwrap();
 
-						fn emulated(entropy: [u32; 4], checksum: u32) -> [u32; 12] {
-							let entropy = entropy.map(|i| i.to_be());
-							let mut out = [0u32; 12];
-
-							// 1st chunk
-							out[0] = entropy[0] >> 21;
-							out[1] = (entropy[0] << 11) >> 21;
-							out[2] = ((entropy[0] << 22) >> 21) | (entropy[1] >> (32 - 1));
-
-							// 2nd chunk
-							out[3] = (entropy[1] << 1) >> 21;
-							out[4] = (entropy[1] << 12) >> 21;
-							out[5] = ((entropy[1] << 23) >> 21) | (entropy[2] >> (32 - 2));
-
-							// 3rd chunk
-							out[6] = (entropy[2] << 2) >> 21;
-							out[7] = (entropy[2] << 13) >> 21;
-							out[8] = ((entropy[2] << 24) >> 21) | (entropy[3] >> (32 - 3));
-
-							// 4th chunk + Entropy
-							out[9] = (entropy[3] << 3) >> 21;
-							out[10] = (entropy[3] << 14) >> 21;
-							out[11] = ((entropy[3] << 25) >> 21) | checksum;
-
-							return out;
-						}
-
 						// inspect generated word bytes
 						let cpu_indices = mnemonic.word_indices().collect::<Vec<_>>();
-						let emulated_indices = emulated(match_, constants.checksum);
 						let gpu_indices = &hash[..12];
 
-						println!(
-							"[{}]: Match = {:?}\nCpuIndices = {:?}\nEmuIndices = {:?}\nGpuIndices = {:?}\n",
-							idx, match_, cpu_indices, emulated_indices, gpu_indices
-						);
+						for (idx, (cpu, gpu)) in cpu_indices.iter().zip(gpu_indices.iter()).enumerate() {
+							println!("[{}] CPU[{1}] = {:011b}, GPU[{2}] = {:011b}", idx, *cpu, *gpu);
+
+							if (idx + 1) % 3 == 0 {
+								println!(" ");
+							}
+						}
+
+						println!("===**===");
 
 						// let cpu_hmac = pbkdf2(words.as_bytes());
 

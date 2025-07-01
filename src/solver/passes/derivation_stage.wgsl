@@ -3,7 +3,7 @@ const WORKGROUP_SIZE = 256; // 2 ^ 8
 const P2PKH_ADDRESS_SIZE = 20;
 
 const MAX_RESULTS_FOUND = 1398101;
-const WORDS = 4;
+const ENTROPIES = 4;
 
 // same as filter stage, most fields ignored
 struct PushConstants {
@@ -27,42 +27,43 @@ struct Word {
     length: u32,
 };
 
-@group(0) @binding(3)
-var<storage, read_write> output: array<array<u32, SHA512_HASH_LENGTH>, MAX_RESULTS_FOUND>;
-
 fn swap_bytes(value: u32) -> u32 {
-    return ((value & 0xFF) << 24) | (((value >> 8) & 0xFF) << 16) | (((value >> 16) & 0xFF) << 8) | ((value >> 24) & 0xFF);
+    let byte0 = value & 0xFF;
+    let byte1 = (value >> 8) & 0xFF;
+    let byte2 = (value >> 16) & 0xFF;
+    let byte3 = (value >> 24) & 0xFF;
+
+    return (byte0 * 0x1000000) | (byte1 * 0x10000) | (byte2 * 0x100) | byte3;
 }
 
-// bind bip39::words or embed as constant
-fn entropy_to_indices(entropy: array<u32, WORDS>) -> array<u32, 12> {
+fn entropy_to_indices(entropy_be: array<u32, ENTROPIES>) -> array<u32, 12> {
     // swap to BE
-    var be_entropy = array<u32, 4>();
+    var entropy = array<u32, 4>();
     for (var i = 0u; i < 4u; i++) {
-        be_entropy[i] = swap_bytes(entropy[i]);
+        entropy[i] = swap_bytes(entropy_be[i]);
     }
 
     var out = array<u32, 12>();
 
-    // 1st chunk
-    out[0] = be_entropy[0] >> 21;
-    out[1] = (be_entropy[0] << 11) >> 21;
-    out[2] = ((be_entropy[0] << 22) >> 21) | (be_entropy[1] >> (32 - 1));
+    // 1st chunk - extracting 11-bit values from entropy[0]
+    out[0] = entropy[0] >> 21;
+    out[1] = (entropy[0] >> 10) & 0x7FF;
+    out[2] = ((entropy[0] & 0x3FF) * 2) | ((entropy[1] >> 31) & 0x1);
 
-    // 2nd chunk
-    out[3] = (be_entropy[1] << 1) >> 21;
-    out[4] = (be_entropy[1] << 12) >> 21;
-    out[5] = ((be_entropy[1] << 23) >> 21) | (be_entropy[2] >> (32 - 2));
+    // 2nd chunk - extracting from entropy[1]
+    out[3] = (entropy[1] >> 20) & 0x7FF;
+    out[4] = (entropy[1] >> 9) & 0x7FF;
+    out[5] = ((entropy[1] & 0x1FF) * 4) | ((entropy[2] >> 30) & 0x3);
 
-    // 3rd chunk
-    out[6] = (be_entropy[2] << 2) >> 21;
-    out[7] = (be_entropy[2] << 13) >> 21;
-    out[8] = ((be_entropy[2] << 24) >> 21) | (be_entropy[3] >> (32 - 3));
+    // 3rd chunk - extracting from entropy[2]
+    out[6] = (entropy[2] >> 19) & 0x7FF;
+    out[7] = (entropy[2] >> 8) & 0x7FF;
+    out[8] = ((entropy[2] & 0xFF) * 8) | ((entropy[3] >> 29) & 0x7);
 
-    // 4th chunk + Entropy
-    out[9] = (be_entropy[3] << 3) >> 21;
-    out[10] = (be_entropy[3] << 14) >> 21;
-    out[11] = ((be_entropy[3] << 25) >> 21) | constants.checksum;
+    // 4th chunk - extracting from entropy[3] + checksum
+    out[9] = (entropy[3] >> 18) & 0x7FF;
+    out[10] = (entropy[3] >> 7) & 0x7FF;
+    out[11] = ((entropy[3] & 0x7F) * 16) | (constants.checksum & 0xF);
 
     return out;
 }
@@ -96,12 +97,15 @@ fn indices_to_word(indices: array<u32, 12>, dest: ptr<function, array<u32, MNEMO
     return cursor;
 }
 
+@group(0) @binding(3)
+var<storage, read_write> output: array<array<u32, SHA512_HASH_LENGTH>, MAX_RESULTS_FOUND>;
+
 @compute @workgroup_size(WORKGROUP_SIZE)
 fn main(@builtin(global_invocation_id) global: vec3<u32>) {
     // generate indices for mnemonics words from entropy
     let word_2 = matches[global.x];
 
-    var entropy = array<u32, WORDS>(constants.word0, constants.word1, word_2, constants.word3);
+    var entropy = array<u32, ENTROPIES>(constants.word0, constants.word1, word_2, constants.word3);
     var indices = entropy_to_indices(entropy);
 
     // extract word bytes and derive master extended key
