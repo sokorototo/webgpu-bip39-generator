@@ -116,9 +116,9 @@ fn main(@builtin(global_invocation_id) global: vec3<u32>) {
     }
 
     // TODO: avoid using an intermediate array, use storage buffer and index directly in functions
-    // var master_key: array<u32, SHA512_HASH_LENGTH>;
-    // pbkdf2(&word_bytes, length, &salt, mnemonic_len, 2048, &master_key);
+    var master_key: array<u32, SHA512_HASH_LENGTH>;
+    pbkdf2(&word_bytes, length, &salt, mnemonic_len, 2048, &master_key);
 
-    output[global.x] = sha512(&word_bytes, length);
+    output[global.x] = master_key;
     // TODO: continue with derivation path
 }

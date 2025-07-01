@@ -125,12 +125,6 @@ fn verify_derived_hashes() {
 						println!("Sequence = {}", sequence);
 						println!("GPU[{}] = {}", idx, gpu_hash);
 						println!("CPU[{}] = {}\n", idx, cpu_hash);
-
-						// let cpu_hmac = pbkdf2(words.as_bytes());
-
-						// print results
-						// let gpu_hmac = hash.map(|s| s as u8);
-						// println!("[{}]: Match = {:?}\nGpuHmac = {}\nCpuHmac = {}", idx, match_, hex::encode(&gpu_hmac), hex::encode(&cpu_hmac));
 					}
 
 					processed += 1;
