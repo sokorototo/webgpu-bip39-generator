@@ -86,11 +86,11 @@ fn verify_derived_hashes() {
 		// verifies outputs from solver
 		while let Ok(update) = receiver.recv() {
 			match update.data {
-				solver::SolverData::Matches { matches, .. } => {
-					map.insert(update.step, matches);
+				solver::SolverData::Matches { matches, constants } => {
+					map.insert(update.step, (constants, matches));
 				}
 				solver::SolverData::Derivations { hashes, .. } => {
-					let matches = map.remove(&update.step).unwrap();
+					let (constants, matches) = map.remove(&update.step).unwrap();
 					assert_eq!(matches.len(), hashes.len(), "Derivation Stage produced an incorrect number of matches");
 
 					for (idx, (hash, match_)) in hashes.iter().zip(matches.iter()).enumerate() {
