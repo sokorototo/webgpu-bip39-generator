@@ -91,7 +91,7 @@ pub(crate) fn solve<const F: u8>(config: &super::Config, device: &wgpu::Device, 
 
 			// compress entropy from 2^44 to 2^20. Each dispatch processes 2^24 threads
 			let entropy = (step / THREADS_PER_DISPATCH as u64) as u32;
-			filter_pass.constants.words[1] = (filter_pass.constants.words[1] & 0xfff00000) & entropy;
+			filter_pass.constants.words[1] = (filter_pass.constants.words[1] & 0xfff00000) | entropy;
 
 			pass.set_pipeline(&filter_pass.pipeline);
 			pass.set_push_constants(0, bytemuck::cast_slice(&[filter_pass.constants]));
