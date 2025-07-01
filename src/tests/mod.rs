@@ -19,11 +19,9 @@ fn pbkdf2(bytes: &[u8]) -> [u8; 64] {
 
 #[test]
 fn verify_filtered_mnemonics() {
+	let stencil = ["elder", "resist", "rocket", "skill", "_", "_", "_", "_", "jungle", "zoo", "circle", "circle"];
 	let config = Config {
-		stencil: ["elder", "resist", "rocket", "skill", "_", "_", "_", "_", "jungle", "zoo", "circle", "return"]
-			.map(|s| s.to_string())
-			.into_iter()
-			.collect(),
+		stencil: stencil.map(|s| s.to_string()).into_iter().collect(),
 		range: (0, 64),
 		address: parse_address("1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa").unwrap(),
 	};
@@ -46,14 +44,22 @@ fn verify_filtered_mnemonics() {
 
 			// verify constants
 			for match_ in matches {
-				let match_ = [constants.words[0], constants.words[1], match_, constants.words[3]];
-				let bytes: &[u8] = bytemuck::cast_slice(&match_);
+				let entropy = [constants.words[0], constants.words[1], match_, constants.words[3]];
+				let entropy_be = entropy.map(|e| e.to_be());
+				let bytes: &[u8] = bytemuck::cast_slice(&entropy_be);
 
 				let mnemonic = bip39::Mnemonic::from_entropy_in(bip39::Language::English, bytes).unwrap();
 				assert_eq!(constants.checksum as u8, mnemonic.checksum(), "Extracted Mnemonic Sequence has invalid checksum");
 
+				// verify stencil
+				mnemonic.words().zip(stencil.iter()).enumerate().for_each(|(idx, (output, stencil))| {
+					if *stencil != "_" {
+						assert_eq!(output, *stencil, "Word[{}] mismatch between Stencil and GPU output", idx);
+					}
+				});
+
 				// verify uniqueness
-				assert!(set.insert(match_.clone()), "Duplicate Entropy Found: {:?}", match_);
+				assert!(set.insert(entropy_be.clone()), "Duplicate Entropy Found: {:?}", entropy_be);
 			}
 		}
 
@@ -68,7 +74,7 @@ fn verify_filtered_mnemonics() {
 #[test]
 fn verify_derived_hashes() {
 	let config = Config {
-		stencil: ["abandon", "abandon", "rocket", "skill", "_", "_", "_", "_", "jungle", "zoo", "circle", "return"]
+		stencil: ["return", "jungle", "rocket", "skill", "_", "_", "_", "_", "jungle", "zoo", "circle", "return"]
 			.map(|s| s.to_string())
 			.into_iter()
 			.collect(),
@@ -99,30 +105,16 @@ fn verify_derived_hashes() {
 					let (constants, matches) = map.remove(&update.step).unwrap();
 					assert_eq!(matches.len(), hashes.len(), "Derivation Stage produced an incorrect number of matches");
 
-					for (idx, (hash, match_)) in hashes.iter().zip(matches.iter()).enumerate() {
-						if hash == &null_hash {
-							// null-hash baby!
-							continue;
-						}
+					for (hash, match_) in hashes.iter().zip(matches.iter()).take(2) {
+						assert_ne!(hash, &null_hash);
 
 						// verify hmac
-						let match_ = [constants.words[0], constants.words[1], *match_, constants.words[3]];
-						let bytes: &[u8] = bytemuck::cast_slice(&match_);
-						let mnemonic = bip39::Mnemonic::from_entropy_in(bip39::Language::English, bytes).unwrap();
+						let entropy = [constants.words[0], constants.words[1], *match_, constants.words[3]];
+						let entropy = entropy.map(|e| e.to_be()); // reverse endianness from insertion
+						let mnemonic = bip39::Mnemonic::from_entropy_in(bip39::Language::English, bytemuck::cast_slice(&entropy)).unwrap();
 
-						// inspect generated word bytes
-						let cpu_indices = mnemonic.word_indices().collect::<Vec<_>>();
-						let gpu_indices = &hash[..12];
-
-						for (idx, (cpu, gpu)) in cpu_indices.iter().zip(gpu_indices.iter()).enumerate() {
-							println!("[{}] CPU[{1}] = {:011b}, GPU[{2}] = {:011b}", idx, *cpu, *gpu);
-
-							if (idx + 1) % 3 == 0 {
-								println!(" ");
-							}
-						}
-
-						println!("===**===");
+						let hash = hash.map(|s| s.try_into().unwrap());
+						let gpu_hash = hex::encode(&hash);
 
 						// let cpu_hmac = pbkdf2(words.as_bytes());
 
