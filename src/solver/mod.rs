@@ -60,12 +60,18 @@ pub(crate) fn solve<const F: u8>(config: &super::Config, device: &wgpu::Device, 
 	// initialize passes
 	let mut filter_pass = filter::FilterPass::new(device, config.stencil.iter().map(|s| s.as_str()));
 	let reset_pass = reset::ResetPass::new(device, &filter_pass);
-	let derivation_pass = derivation::DerivationPass::new(device, &filter_pass, config.address);
+	let mut derivation_pass = derivation::DerivationPass::new(device, &filter_pass, config.address);
 
 	// each pass steps by THREADS_PER_DISPATCH = 2^24
 	// MAX(config.range.1) = 2^44. THREADS_PER_DISPATCH * 2^22
 	for step in (config.range.0..config.range.1).step_by(THREADS_PER_DISPATCH as _) {
-		let mut matches_count = 0;
+		let entropy = (step / THREADS_PER_DISPATCH as u64) as u32;
+		let word1 = (filter_pass.constants.words[1] & 0xfff00000) | entropy;
+
+		filter_pass.constants.words[1] = word1;
+		derivation_pass.constants.words[1] = word1;
+
+		// start pipeline
 		let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("solver::encoder") });
 
 		{
@@ -88,10 +94,6 @@ pub(crate) fn solve<const F: u8>(config: &super::Config, device: &wgpu::Device, 
 				label: Some("filter_pass"),
 				timestamp_writes: None,
 			});
-
-			// compress entropy from 2^44 to 2^20. Each dispatch processes 2^24 threads
-			let entropy = (step / THREADS_PER_DISPATCH as u64) as u32;
-			filter_pass.constants.words[1] = (filter_pass.constants.words[1] & 0xfff00000) | entropy;
 
 			pass.set_pipeline(&filter_pass.pipeline);
 			pass.set_push_constants(0, bytemuck::cast_slice(&[filter_pass.constants]));
@@ -137,6 +139,8 @@ pub(crate) fn solve<const F: u8>(config: &super::Config, device: &wgpu::Device, 
 		device.poll(wgpu::PollType::Wait).unwrap();
 
 		// if any read flags are set, read `count` buffer
+		let mut matches_count = 0;
+
 		if (F & MATCHES_READ_FLAG == MATCHES_READ_FLAG) || (F & HASHES_READ_FLAG == HASHES_READ_FLAG) {
 			let (count_send, count_recv) = sync::mpsc::sync_channel(1);
 			let _count_buffer = filter_pass.count_buffer.clone();

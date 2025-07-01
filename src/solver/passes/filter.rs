@@ -15,12 +15,11 @@ impl PushConstants {
 		let mnemonic = bip39::Mnemonic::parse_in_normalized_without_checksum_check(bip39::Language::English, &replaced).unwrap();
 
 		let entropy = mnemonic.to_entropy();
-		let slice: &[u32] = bytemuck::cast_slice(&entropy);
 
 		// mnemonic is bigEndian: 💀
 		let mut words = [0u32; 4];
-		words.copy_from_slice(slice);
-		words = words.map(|w| w.to_be());
+		words.copy_from_slice(bytemuck::cast_slice(&entropy));
+		words = words.map(|w| w.to_be()); // TODO: does this make sense?
 
 		PushConstants {
 			words,

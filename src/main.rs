@@ -7,7 +7,7 @@ pub(crate) mod tests;
 #[derive(Debug, Clone, argh::FromArgs)]
 /// Generates the remaining words in a BTC seed phrase by brute-force. Uses the WebGPU API
 pub(crate) struct Config {
-	/// string describing known and unknown words in the mnemonic sentence. Must be 12 or 13 words long
+	/// string describing known and unknown words in the mnemonic sentence. Must be 12 words long
 	#[argh(positional)]
 	stencil: Vec<String>,
 	/// solve for addresses in the range [start, end]. Maximum problem space is [0, 17592186044416] (2^44)
@@ -47,8 +47,8 @@ async fn main() {
 		panic!("Invalid Stencil: Contains Unknown Word {}", unknown)
 	};
 
-	// stencil must match expected pattern of 4 words, 4 stars and 4 words
-	if !config.stencil.iter().enumerate().all(|(idx, ss)| (4..8).contains(&idx) || (ss != "_")) {
+	// stencil must match expected pattern of 4 words, 4 underscores and 4 words
+	if config.stencil.len() != 12 || !config.stencil.iter().enumerate().all(|(idx, ss)| (4..8).contains(&idx) || (ss != "_")) {
 		panic!("Invalid Stencil Pattern: Expected 4 words, 4 stars and 4 words\n Eg: throw roast bulk opinion * * * * guide female change thought");
 	};
 

@@ -36,13 +36,7 @@ fn swap_bytes(value: u32) -> u32 {
     return (byte0 * 0x1000000) | (byte1 * 0x10000) | (byte2 * 0x100) | byte3;
 }
 
-fn entropy_to_indices(entropy_be: array<u32, ENTROPIES>) -> array<u32, 12> {
-    // swap to BE
-    var entropy = array<u32, 4>();
-    for (var i = 0u; i < 4u; i++) {
-        entropy[i] = swap_bytes(entropy_be[i]);
-    }
-
+fn entropy_to_indices(entropy: array<u32, ENTROPIES>) -> array<u32, 12> {
     var out = array<u32, 12>();
 
     // 1st chunk - extracting 11-bit values from entropy[0]
@@ -50,8 +44,8 @@ fn entropy_to_indices(entropy_be: array<u32, ENTROPIES>) -> array<u32, 12> {
     out[1] = (entropy[0] >> 10) & 0x7FF;
     out[2] = ((entropy[0] & 0x3FF) * 2) | ((entropy[1] >> 31) & 0x1);
 
-    // 2nd chunk - extracting from entropy[1]
     out[3] = (entropy[1] >> 20) & 0x7FF;
+    // 2nd chunk - extracting from entropy[1]
     out[4] = (entropy[1] >> 9) & 0x7FF;
     out[5] = ((entropy[1] & 0x1FF) * 4) | ((entropy[2] >> 30) & 0x3);
 
@@ -125,11 +119,6 @@ fn main(@builtin(global_invocation_id) global: vec3<u32>) {
     // var master_key: array<u32, SHA512_HASH_LENGTH>;
     // pbkdf2(&word_bytes, length, &salt, mnemonic_len, 2048, &master_key);
 
-    var scratch = array<u32, SHA512_HASH_LENGTH>();
-    for (var i = 0; i < 12; i++) {
-        scratch[i] = indices[i];
-    }
-
-    output[global.x] = scratch;
+    output[global.x] = sha512(word_bytes, length);
     // TODO: continue with derivation path
 }

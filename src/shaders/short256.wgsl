@@ -33,13 +33,13 @@ fn SIG0(x: u32) -> u32 { return (ROTRIGHT(x, 7) ^ ROTRIGHT(x, 18) ^ ((x) >> 3));
 fn SIG1(x: u32) -> u32 { return (ROTRIGHT(x, 17) ^ ROTRIGHT(x, 19) ^ ((x) >> 10)); }
 
 // Maps a dense u32 -> [u8; 4] -> [u32; 4]
-fn extract_bytes(input: u32) -> array<u32, 4> {
+fn extract_bytes_be(input: u32) -> array<u32, 4> {
     var bytes: array<u32, 4>;
 
-    bytes[0] = (input >> 0u) & 0xFFu;
-    bytes[1] = (input >> 8u) & 0xFFu;
-    bytes[2] = (input >> 16u) & 0xFFu;
-    bytes[3] = (input >> 24u) & 0xFFu;
+    bytes[3] = (input >> 0u) & 0xFFu;
+    bytes[2] = (input >> 8u) & 0xFFu;
+    bytes[1] = (input >> 16u) & 0xFFu;
+    bytes[0] = (input >> 24u) & 0xFFu;
 
     return bytes;
 }
@@ -178,7 +178,7 @@ fn short256(input: array<u32, KIBBLE_COUNT>) -> u32 {
 
     // inflate each u32 -> [u32; 4]
     for (var i = 0; i < KIBBLE_COUNT; i ++) {
-        var temp = extract_bytes(input[i]);
+        var temp = extract_bytes_be(input[i]);
         for (var j = 0; j < 4; j ++) {
             buf[(i * KIBBLE_COUNT) + j] = temp[j];
         }
