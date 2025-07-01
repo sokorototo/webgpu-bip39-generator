@@ -165,7 +165,7 @@ pub(crate) fn solve<const F: u8>(config: &super::Config, device: &wgpu::Device, 
 			device.poll(wgpu::PollType::Wait).unwrap();
 			matches_count = count_recv.recv_timeout(time::Duration::from_secs(5)).expect("Unable to acquire matches_count from buffer");
 
-			dbg!(matches_count);
+			println!("Addresses Found: {}", matches_count);
 
 			// output buffer was full
 			if matches_count >= MAX_RESULTS_FOUND as _ {

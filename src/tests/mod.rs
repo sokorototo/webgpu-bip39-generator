@@ -266,7 +266,9 @@ fn test_short256() {
 		let bytes: &[u32] = bytemuck::cast_slice(view.as_ref());
 
 		for (idx, gpu_output) in bytes.iter().enumerate() {
-			let cpu_output = sha256(bytemuck::cast_slice(&inputs[idx]));
+			let inputs_be = inputs[idx].map(|i| i.to_be());
+			let cpu_output = sha256(bytemuck::cast_slice(&inputs_be));
+
 			assert_eq!(*gpu_output, cpu_output[0] as u32, "HashBit Mismatch Between GPU and CPU",);
 		}
 	});
