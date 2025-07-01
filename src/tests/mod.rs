@@ -105,7 +105,7 @@ fn verify_derived_hashes() {
 					let (constants, matches) = map.remove(&update.step).unwrap();
 					assert_eq!(matches.len(), hashes.len(), "Derivation Stage produced an incorrect number of matches");
 
-					for (hash, match_) in hashes.iter().zip(matches.iter()).take(2) {
+					for (idx, (hash, match_)) in hashes.iter().zip(matches.iter()).enumerate() {
 						assert_ne!(hash, &null_hash);
 
 						// verify hmac
@@ -113,8 +113,18 @@ fn verify_derived_hashes() {
 						let entropy = entropy.map(|e| e.to_be()); // reverse endianness from insertion
 						let mnemonic = bip39::Mnemonic::from_entropy_in(bip39::Language::English, bytemuck::cast_slice(&entropy)).unwrap();
 
-						let hash = hash.map(|s| s.try_into().unwrap());
+						let hash = hash.map(|s| s as u8);
 						let gpu_hash = hex::encode(&hash);
+
+						let first = mnemonic.words().next().unwrap().to_string();
+						let sequence = mnemonic.words().skip(1).fold(first, |acc, nxt| acc + " " + nxt);
+
+						let cpu_hash = pbkdf2(sequence.as_bytes());
+						let cpu_hash = hex::encode(&cpu_hash);
+
+						println!("Sequence = {}", sequence);
+						println!("GPU[{}] = {}", idx, gpu_hash);
+						println!("CPU[{}] = {}\n", idx, cpu_hash);
 
 						// let cpu_hmac = pbkdf2(words.as_bytes());
 

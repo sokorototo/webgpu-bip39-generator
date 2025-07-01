@@ -42,17 +42,17 @@ fn entropy_to_indices(entropy: array<u32, ENTROPIES>) -> array<u32, 12> {
     // 1st chunk - extracting 11-bit values from entropy[0]
     out[0] = entropy[0] >> 21;
     out[1] = (entropy[0] >> 10) & 0x7FF;
-    out[2] = ((entropy[0] & 0x3FF) * 2) | ((entropy[1] >> 31) & 0x1);
+    out[2] = ((entropy[0] & 0x3FF) * 2) | (entropy[1] >> 31);
 
     out[3] = (entropy[1] >> 20) & 0x7FF;
     // 2nd chunk - extracting from entropy[1]
     out[4] = (entropy[1] >> 9) & 0x7FF;
-    out[5] = ((entropy[1] & 0x1FF) * 4) | ((entropy[2] >> 30) & 0x3);
+    out[5] = ((entropy[1] & 0x1FF) * 4) | (entropy[2] >> 30);
 
     // 3rd chunk - extracting from entropy[2]
     out[6] = (entropy[2] >> 19) & 0x7FF;
     out[7] = (entropy[2] >> 8) & 0x7FF;
-    out[8] = ((entropy[2] & 0xFF) * 8) | ((entropy[3] >> 29) & 0x7);
+    out[8] = ((entropy[2] & 0xFF) * 8) | (entropy[3] >> 29);
 
     // 4th chunk - extracting from entropy[3] + checksum
     out[9] = (entropy[3] >> 18) & 0x7FF;
@@ -119,6 +119,6 @@ fn main(@builtin(global_invocation_id) global: vec3<u32>) {
     // var master_key: array<u32, SHA512_HASH_LENGTH>;
     // pbkdf2(&word_bytes, length, &salt, mnemonic_len, 2048, &master_key);
 
-    output[global.x] = sha512(word_bytes, length);
+    output[global.x] = sha512(&word_bytes, length);
     // TODO: continue with derivation path
 }
