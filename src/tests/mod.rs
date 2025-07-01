@@ -113,8 +113,8 @@ fn verify_derived_hashes() {
 						let entropy = entropy.map(|e| e.to_be()); // reverse endianness from insertion
 						let mnemonic = bip39::Mnemonic::from_entropy_in(bip39::Language::English, bytemuck::cast_slice(&entropy)).unwrap();
 
-						let hash = hash.map(|s| s as u8);
-						let gpu_hash = hex::encode(&hash);
+						let gpu_hash = hash.map(|s| s as u8);
+						let gpu_hash = hex::encode(&gpu_hash);
 
 						let first = mnemonic.words().next().unwrap().to_string();
 						let sequence = mnemonic.words().skip(1).fold(first, |acc, nxt| acc + " " + nxt);
@@ -125,6 +125,8 @@ fn verify_derived_hashes() {
 						println!("Sequence = {}", sequence);
 						println!("GPU[{}] = {}", idx, gpu_hash);
 						println!("CPU[{}] = {}\n", idx, cpu_hash);
+
+						assert_eq!(gpu_hash, cpu_hash);
 					}
 
 					processed += 1;
