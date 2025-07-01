@@ -99,8 +99,17 @@ fn verify_derived_hashes() {
 							continue;
 						}
 
-						let hex = hex::encode(&hash.map(|s| s as u8));
-						println!("[{}]: Match = {:?}, Hash = {}", idx, match_, hex);
+						// verify hmac
+						let match_ = [constants.words[0], constants.words[1], match_, constants.words[3]];
+						let bytes: &[u8] = bytemuck::cast_slice(&match_);
+						let mnemonic = bip39::Mnemonic::from_entropy_in(bip39::Language::English, bytes).unwrap();
+
+						let words = mnemonic.words().collect::<String>();
+						let cpu_hmac = pbkdf2(words.as_bytes());
+
+						// print results
+						let gpu_hmac = hash.map(|s| s as u8);
+						println!("[{}]: Match = {:?}\nGpuHmac = {}\nCpuHmac = {}", idx, match_, hex::encode(&gpu_hmac), hex::encode(&cpu_hmac));
 					}
 
 					processed += 1;
