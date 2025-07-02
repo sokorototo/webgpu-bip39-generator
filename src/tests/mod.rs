@@ -22,7 +22,7 @@ fn verify_filtered_mnemonics() {
 	let stencil = ["elder", "resist", "rocket", "skill", "_", "_", "_", "_", "jungle", "zoo", "circle", "circle"];
 	let config = Config {
 		stencil: stencil.map(|s| s.to_string()).into_iter().collect(),
-		range: (0, 64),
+		range: (0, 2048),
 		address: parse_address("1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa").unwrap(),
 	};
 
@@ -78,7 +78,7 @@ fn verify_derived_hashes() {
 			.map(|s| s.to_string())
 			.into_iter()
 			.collect(),
-		range: (0, 64),
+		range: (0, 2048),
 		address: parse_address("1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa").unwrap(),
 	};
 
