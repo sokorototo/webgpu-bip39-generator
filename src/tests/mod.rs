@@ -137,9 +137,11 @@ fn verify_derived_hashes() {
 						let seed = pbkdf2(sequence.as_bytes());
 
 						// let zero_seed = [0u8; 64];
-						let mut zero_key = [0u8; 64];
-						let master_extended_key = hmac_sha512(&seed, b"Bitcoin Seed");
-						let cpu_hash = hex::encode(b"Bitcoin Seed");
+						let mut key = [0u8; 64];
+						(&mut key[0..12]).copy_from_slice(b"Bitcoin Seed");
+
+						let master_extended_key = hmac_sha512(&seed, &mut key);
+						let cpu_hash = hex::encode(&master_extended_key);
 
 						println!("Sequence[{}] = {}", idx, sequence);
 						println!("CpuKey = {}", cpu_hash);

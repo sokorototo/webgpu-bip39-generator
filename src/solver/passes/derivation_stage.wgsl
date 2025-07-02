@@ -136,6 +136,6 @@ fn main(@builtin(global_invocation_id) global: vec3<u32>) {
     var master_extended_key: array<u32, SHA512_HASH_LENGTH>;
     hmac_sha512(&seed_128, SHA512_HASH_LENGTH, &key_128, &master_extended_key);
 
-    output[global.x] = key_128;
+    output[global.x] = master_extended_key;
     // TODO: continue with derivation path
 }
