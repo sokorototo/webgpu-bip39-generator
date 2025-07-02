@@ -41,9 +41,16 @@ fn hmac_sha512(
     out: ptr<function, array<u32, SHA512_HASH_LENGTH>>
 ) {
     var ctx: SHA512_CTX;
+    var scratch: array<u32, SHA512_MAX_INPUT_SIZE>;
+
     hmac_sha512_init(&ctx, key);
-    sha512_update(ctx, data, data_len);
-    hmac_sha512_done(&ctx, key, out);
+    sha512_update(&ctx, data, data_len);
+    hmac_sha512_done(&ctx, key, &scratch);
+
+    // write final hash to output
+    for (var i = 0u; i < SHA512_HASH_LENGTH; i++) {
+        out[i] = scratch[i];
+    };
 }
 
 fn pbkdf2(

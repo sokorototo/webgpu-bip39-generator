@@ -110,6 +110,7 @@ fn main(@builtin(global_invocation_id) global: vec3<u32>) {
     var mnemonic = array<u32, 8>(109, 110, 101, 109, 111, 110, 105, 99);
     let mnemonic_len = 8u;
 
+    // TODO: consolidate usage of _128 scratch buffers?
     var mnemonic_128 = array<u32, SHA512_MAX_INPUT_SIZE>();
     for (var i = 0u; i < mnemonic_len; i++) {
         mnemonic_128[i] = mnemonic[i];
@@ -120,16 +121,20 @@ fn main(@builtin(global_invocation_id) global: vec3<u32>) {
     pbkdf2(&word_bytes, length, &mnemonic_128, mnemonic_len, 2048, &seed);
 
     // derive master extended key
-    var bitcoin_seed = array<u32, 12>(66, 105, 116, 99, 111, 105, 110, 32, 115, 101, 101, 100);
-    var bitcoin_seed_len = 12u;
+    var key = array<u32, 12>(66, 105, 116, 99, 111, 105, 110, 32, 115, 101, 101, 100); // b"Bitcoin Seed"
 
-    var bitcoin_seed_128 = array<u32, SHA512_MAX_INPUT_SIZE>();
-    for (var i = 0u; i < bitcoin_seed_len; i++) {
-        bitcoin_seed_128[i] = bitcoin_seed[i];
+    var key_128 = array<u32, SHA512_MAX_INPUT_SIZE>();
+    for (var i = 0u; i < 12u; i++) {
+        key_128[i] = key[i];
+    }
+
+    var seed_128 = array<u32, SHA512_MAX_INPUT_SIZE>();
+    for (var i = 0u; i < SHA512_HASH_LENGTH; i++) {
+        seed_128[i] = seed[i];
     }
 
     var master_extended_key: array<u32, SHA512_HASH_LENGTH>;
-    hmac_sha512(&seed, &bitcoin_seed_128, &master_extended_key);
+    hmac_sha512(&seed_128, SHA512_HASH_LENGTH, &key_128, &master_extended_key);
 
     output[global.x] = master_extended_key;
     // TODO: continue with derivation path
