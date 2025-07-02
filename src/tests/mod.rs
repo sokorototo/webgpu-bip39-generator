@@ -139,7 +139,7 @@ fn verify_derived_hashes() {
 
 						println!("Sequence = {}", sequence);
 						println!("CpuKey = {}", cpu_hash);
-						println!("GpuKey = {}", gpu_hash);
+						println!("GpuKey = {}\n", gpu_hash);
 
 						assert_eq!(gpu_hash, cpu_hash);
 					}
