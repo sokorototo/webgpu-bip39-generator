@@ -122,10 +122,6 @@ fn verify_derived_hashes() {
 						let cpu_hash = pbkdf2(sequence.as_bytes());
 						let cpu_hash = hex::encode(&cpu_hash);
 
-						println!("Sequence = {}", sequence);
-						println!("GPU[{}] = {}", idx, gpu_hash);
-						println!("CPU[{}] = {}\n", idx, cpu_hash);
-
 						assert_eq!(gpu_hash, cpu_hash);
 					}
 
