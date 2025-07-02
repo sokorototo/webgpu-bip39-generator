@@ -35,11 +35,24 @@ fn hmac_sha512_done(ctx: ptr<function, SHA512_CTX>, key: ptr<function, array<u32
     sha512_done(ctx, out);
 }
 
-// We know salt is "mnemonic" LOL
+fn hmac_sha512(
+    data: ptr<function, array<u32, SHA512_MAX_INPUT_SIZE>>, data_len: u32,
+    key: ptr<function, array<u32, SHA512_MAX_INPUT_SIZE>>,
+    out: ptr<function, array<u32, SHA512_HASH_LENGTH>>
+) {
+    var ctx: SHA512_CTX;
+    hmac_sha512_init(&ctx, key);
+    sha512_update(ctx, data, data_len);
+    hmac_sha512_done(&ctx, key, out);
+}
+
 fn pbkdf2(
     passwd: ptr<function, array<u32, SHA512_MAX_INPUT_SIZE>>, passlen: u32,
     salt: ptr<function, array<u32, SHA512_MAX_INPUT_SIZE>>, saltlen: u32,
-    iter: u32, out: ptr<function, array<u32, SHA512_HASH_LENGTH>>) {
+    iter: u32, out: ptr<function, array<u32, SHA512_HASH_LENGTH>>
+) {
+    // TODO: avoid using an intermediate array, use storage buffer and index directly in functions
+
     // cache hmac-state
     var cached: SHA512_CTX;
     hmac_sha512_init(&cached, passwd);

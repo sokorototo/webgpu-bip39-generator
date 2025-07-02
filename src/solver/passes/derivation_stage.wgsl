@@ -102,7 +102,7 @@ fn main(@builtin(global_invocation_id) global: vec3<u32>) {
     var entropy = array<u32, ENTROPIES>(constants.word0, constants.word1, word_2, constants.word3);
     var indices = entropy_to_indices(entropy);
 
-    // extract word bytes and derive master extended key
+    // extract word
     var word_bytes = array<u32, MNEMONIC_MAX_BYTES>();
     var length = indices_to_word(indices, &word_bytes);
 
@@ -110,15 +110,27 @@ fn main(@builtin(global_invocation_id) global: vec3<u32>) {
     var mnemonic = array<u32, 8>(109, 110, 101, 109, 111, 110, 105, 99);
     let mnemonic_len = 8u;
 
-    var salt = array<u32, SHA512_MAX_INPUT_SIZE>();
+    var mnemonic_128 = array<u32, SHA512_MAX_INPUT_SIZE>();
     for (var i = 0u; i < mnemonic_len; i++) {
-        salt[i] = mnemonic[i];
+        mnemonic_128[i] = mnemonic[i];
     }
 
-    // TODO: avoid using an intermediate array, use storage buffer and index directly in functions
-    var master_key: array<u32, SHA512_HASH_LENGTH>;
-    pbkdf2(&word_bytes, length, &salt, mnemonic_len, 2048, &master_key);
+    // derive mnemonic seed
+    var seed: array<u32, SHA512_HASH_LENGTH>;
+    pbkdf2(&word_bytes, length, &mnemonic_128, mnemonic_len, 2048, &seed);
 
-    output[global.x] = master_key;
+    // derive master extended key
+    var bitcoin_seed = array<u32, 12>(66, 105, 116, 99, 111, 105, 110, 32, 115, 101, 101, 100);
+    var bitcoin_seed_len = 12u;
+
+    var bitcoin_seed_128 = array<u32, SHA512_MAX_INPUT_SIZE>();
+    for (var i = 0u; i < bitcoin_seed_len; i++) {
+        bitcoin_seed_128[i] = bitcoin_seed[i];
+    }
+
+    var master_extended_key: array<u32, SHA512_HASH_LENGTH>;
+    hmac_sha512(&seed, &bitcoin_seed_128, &master_extended_key);
+
+    output[global.x] = master_extended_key;
     // TODO: continue with derivation path
 }

@@ -1,4 +1,9 @@
 use super::*;
+
+use hmac::{
+	digest::{KeyInit, Update},
+	Mac,
+};
 use sha2::Digest;
 use wgpu::util::DeviceExt;
 
@@ -10,6 +15,15 @@ fn sha256(bytes: &[u8]) -> [u8; 32] {
 #[allow(unused)]
 fn sha512(bytes: &[u8]) -> [u8; 64] {
 	sha2::Sha512::digest(bytes).into()
+}
+
+#[allow(unused)]
+fn hmac_sha512(bytes: &[u8], key: &[u8]) -> [u8; 64] {
+	type HmacSha512 = hmac::Hmac<sha2::Sha512>;
+
+	let mut mac = HmacSha512::new_from_slice(key).unwrap();
+	mac.update(bytes);
+	mac.finalize().into_bytes()
 }
 
 #[allow(unused)]
@@ -119,8 +133,13 @@ fn verify_derived_hashes() {
 						let first = mnemonic.words().next().unwrap().to_string();
 						let sequence = mnemonic.words().skip(1).fold(first, |acc, nxt| acc + " " + nxt);
 
-						let cpu_hash = pbkdf2(sequence.as_bytes());
-						let cpu_hash = hex::encode(&cpu_hash);
+						let seed = pbkdf2(sequence.as_bytes());
+						let master_extended_key = hmac_sha512(&seed, b"Bitcoin Seed");
+						let cpu_hash = hex::encode(&master_extended_key);
+
+						println!("Sequence = {}", sequence);
+						println!("CpuKey = {}", cpu_hash);
+						println!("GpuKey = {}", gpu_hash);
 
 						assert_eq!(gpu_hash, cpu_hash);
 					}

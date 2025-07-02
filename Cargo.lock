@@ -975,6 +975,7 @@ dependencies = [
  "bip39",
  "bytemuck",
  "hex",
+ "hmac",
  "pbkdf2",
  "pollster",
  "sha2",
