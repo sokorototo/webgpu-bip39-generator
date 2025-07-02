@@ -110,7 +110,7 @@ fn main(@builtin(global_invocation_id) global: vec3<u32>) {
     var mnemonic = array<u32, 8>(109, 110, 101, 109, 111, 110, 105, 99);
     let mnemonic_len = 8u;
 
-    // TODO: consolidate usage of _128 scratch buffers?
+    // TODO: consolidate usage of _128 scratch buffers? monomorphised functions, buffer re-use
     var mnemonic_128 = array<u32, SHA512_MAX_INPUT_SIZE>();
     for (var i = 0u; i < mnemonic_len; i++) {
         mnemonic_128[i] = mnemonic[i];
@@ -124,14 +124,14 @@ fn main(@builtin(global_invocation_id) global: vec3<u32>) {
     var key = array<u32, 12>(66, 105, 116, 99, 111, 105, 110, 32, 115, 101, 101, 100); // b"Bitcoin Seed"
 
     var key_128 = array<u32, SHA512_MAX_INPUT_SIZE>();
-    for (var i = 0u; i < 12u; i++) {
-        key_128[i] = key[i];
-    }
+    // for (var i = 0u; i < 12u; i++) {
+    //     key_128[i] = key[i];
+    // }
 
     var seed_128 = array<u32, SHA512_MAX_INPUT_SIZE>();
-    for (var i = 0u; i < SHA512_HASH_LENGTH; i++) {
-        seed_128[i] = seed[i];
-    }
+    // for (var i = 0u; i < SHA512_HASH_LENGTH; i++) {
+    //     seed_128[i] = seed[i];
+    // }
 
     var master_extended_key: array<u32, SHA512_HASH_LENGTH>;
     hmac_sha512(&seed_128, SHA512_HASH_LENGTH, &key_128, &master_extended_key);
