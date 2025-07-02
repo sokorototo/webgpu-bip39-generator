@@ -120,17 +120,17 @@ fn main(@builtin(global_invocation_id) global: vec3<u32>) {
     var seed: array<u32, SHA512_HASH_LENGTH>;
     pbkdf2(&word_bytes, length, &mnemonic_128, mnemonic_len, 2048, &seed);
 
+    var seed_128 = array<u32, SHA512_MAX_INPUT_SIZE>();
+    for (var i = 0u; i < SHA512_HASH_LENGTH; i++) {
+        seed_128[i] = seed[i];
+    }
+
     // derive master extended key
     var key = array<u32, 12>(66, 105, 116, 99, 111, 105, 110, 32, 115, 101, 101, 100); // b"Bitcoin Seed"
 
     var key_128 = array<u32, SHA512_MAX_INPUT_SIZE>();
     // for (var i = 0u; i < 12u; i++) {
     //     key_128[i] = key[i];
-    // }
-
-    var seed_128 = array<u32, SHA512_MAX_INPUT_SIZE>();
-    // for (var i = 0u; i < SHA512_HASH_LENGTH; i++) {
-    //     seed_128[i] = seed[i];
     // }
 
     var master_extended_key: array<u32, SHA512_HASH_LENGTH>;
