@@ -129,6 +129,7 @@ fn main(@builtin(global_invocation_id) global: vec3<u32>) {
     var key = array<u32, 12>(66, 105, 116, 99, 111, 105, 110, 32, 115, 101, 101, 100); // b"Bitcoin Seed"
 
     var key_128 = array<u32, SHA512_MAX_INPUT_SIZE>();
+    key_128[2] = 2;
     // for (var i = 0u; i < 12u; i++) {
     //     key_128[i] = key[i];
     // }

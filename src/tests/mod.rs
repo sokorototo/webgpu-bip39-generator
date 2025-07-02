@@ -137,7 +137,8 @@ fn verify_derived_hashes() {
 						let seed = pbkdf2(sequence.as_bytes());
 
 						// let zero_seed = [0u8; 64];
-						let zero_key = [0u8; 64];
+						let mut zero_key = [0u8; 64];
+						zero_key[2] = 2;
 						let master_extended_key = hmac_sha512(&seed, &zero_key);
 
 						// let master_extended_key = hmac_sha512(&seed, b"Bitcoin Seed");
