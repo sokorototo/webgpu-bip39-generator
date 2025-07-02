@@ -136,7 +136,7 @@ fn verify_derived_hashes() {
 
 						let seed = pbkdf2(sequence.as_bytes());
 
-						let seed = [0u8; 64];
+						let zero_seed = [0u8; 64];
 						let zero_key = [0u8; 64];
 						let master_extended_key = hmac_sha512(&zero_seed, &zero_key);
 
