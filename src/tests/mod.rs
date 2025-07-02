@@ -140,8 +140,8 @@ fn verify_derived_hashes() {
 						let mut key = [0u8; 64];
 						(&mut key[0..12]).copy_from_slice(b"Bitcoin Seed");
 
-						let master_extended_key = hmac_sha512(&seed, &mut key);
-						let cpu_hash = hex::encode(&master_extended_key);
+						// let master_extended_key = hmac_sha512(&seed, &mut key);
+						let cpu_hash = hex::encode(&key);
 
 						println!("Sequence[{}] = {}", idx, sequence);
 						println!("CpuKey = {}", cpu_hash);
