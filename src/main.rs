@@ -89,7 +89,7 @@ async fn main() {
 	// start monitoring thread
 	let (sender, receiver) = std::sync::mpsc::channel::<solver::SolverUpdate>();
 	let path = config.found.as_deref().unwrap_or("found.txt");
-	let mut output_file = fs::OpenOptions::new().create(true).truncate(true).open(path).unwrap();
+	let mut output_file = fs::File::open(path).unwrap();
 	let null_hash: solver::types::GpuSha512Hash = bytemuck::Zeroable::zeroed();
 
 	let handle = std::thread::spawn(move || {
