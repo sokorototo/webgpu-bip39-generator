@@ -30,7 +30,7 @@ pub(crate) enum SolverData {
 		constants: passes::filter::PushConstants,
 		matches: Box<[types::Word2]>,
 	},
-	Derivations {
+	Hashes {
 		constants: passes::derivation::PushConstants,
 		hashes: Box<[types::GpuSha512Hash]>,
 	},
@@ -231,7 +231,7 @@ pub(crate) fn solve<const F: u8>(config: &super::Config, device: &wgpu::Device, 
 				sender_
 					.send(SolverUpdate {
 						step,
-						data: SolverData::Derivations {
+						data: SolverData::Hashes {
 							constants: derivation_pass.constants,
 							hashes: Box::from(&results[..matches_count as _]),
 						},

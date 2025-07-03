@@ -89,17 +89,18 @@ async fn main() {
 		println!("Started Addresses Search Thread");
 
 		while let Ok(update) = receiver.recv() {
-			let solver::SolverData::Matches { matches, .. } = update.data else {
+			let solver::SolverData::Hashes { hashes, .. } = update.data else {
 				continue;
 			};
 
 			let iteration = (update.step / solver::THREADS_PER_DISPATCH as u64) + 1;
-			println!("[{:03}/{:03}]: {} Entropies Found in {:?}", iteration, range, matches.len(), then.elapsed());
+			println!("[{:03}/{:03}]: {} Addresses Found in {:?}", iteration, range, hashes.len(), then.elapsed());
+
 			then = std::time::Instant::now();
 		}
 	});
 
 	// solve
-	solver::solve::<{ solver::MATCHES_READ_FLAG }>(&config, &device, &queue, sender);
+	solver::solve::<{ solver::HASHES_READ_FLAG }>(&config, &device, &queue, sender);
 	let _result = handle.join().expect("Monitoring thread experienced an error");
 }

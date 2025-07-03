@@ -116,7 +116,7 @@ fn verify_derived_hashes() {
 				solver::SolverData::Matches { matches, constants } => {
 					map.insert(update.step, (constants, matches));
 				}
-				solver::SolverData::Derivations { hashes, .. } => {
+				solver::SolverData::Hashes { hashes, .. } => {
 					let (constants, matches) = map.remove(&update.step).unwrap();
 					assert_eq!(matches.len(), hashes.len(), "Derivation Stage produced an incorrect number of matches");
 
