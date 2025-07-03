@@ -10,4 +10,4 @@ pub(crate) type GpuSha512Hash = [u32; 64];
 /// The 3rd word of a mnemonic sequence, that matches the given checksum when combined with entropy
 pub(crate) type Word2 = u32;
 /// Represents a verified P2PKH address as a 20-byte hash
-pub(crate) type PublicKeyHash = [u32; 20];
+pub(crate) type PublicKeyHash = [u8; 20];

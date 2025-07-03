@@ -1,4 +1,7 @@
-use std::{fs, io::BufRead};
+use std::{
+	fs,
+	io::{BufRead, Write},
+};
 
 pub(crate) mod device;
 pub(crate) mod solver;
@@ -16,21 +19,17 @@ pub(crate) struct Config {
 	#[argh(option, short = 'p', default = "(0,17592186044416)", from_str_fn(parse_partition))]
 	range: (u64, u64),
 	/// file containing list of known addresses to verify against
-	#[argh(option, short = 'a', default = "default_addresses_file()", from_str_fn(read_addresses_file))]
-	addresses: gxhash::HashSet<solver::types::PublicKeyHash>,
+	#[argh(option, short = 'a')]
+	addresses: Option<String>,
 	/// file to which found addresses will be output
 	#[argh(option, short = 'f')]
 	found: Option<String>,
 }
 
-pub(crate) fn default_addresses_file() -> gxhash::HashSet<solver::types::PublicKeyHash> {
-	read_addresses_file("addresses.txt").unwrap()
-}
-
-pub(crate) fn read_addresses_file(path: &str) -> Result<gxhash::HashSet<solver::types::PublicKeyHash>, String> {
+pub(crate) fn read_addresses_file(path: &str) -> gxhash::HashSet<solver::types::PublicKeyHash> {
 	let file = std::fs::File::open(path).unwrap();
 	let reader = std::io::BufReader::new(file);
-	Ok(reader.lines().map(Result::unwrap).map(|l| parse_address(&l).unwrap()).collect())
+	reader.lines().map(Result::unwrap).map(|l| parse_address(&l).unwrap()).collect()
 }
 
 pub(crate) fn parse_address(address: &str) -> Result<solver::types::PublicKeyHash, String> {
@@ -52,7 +51,7 @@ pub(crate) fn parse_address(address: &str) -> Result<solver::types::PublicKeyHas
 	let mut buf = [0u8; 20];
 	buf.copy_from_slice(&bytes[1..21]);
 
-	Ok(buf.map(|b| b as u32))
+	Ok(buf)
 }
 
 pub(crate) fn parse_partition(path: &str) -> Result<(u64, u64), String> {
@@ -86,13 +85,22 @@ async fn main() {
 	let mut then = std::time::Instant::now();
 	let range = 1 + (config.range.1 - config.range.0) / solver::THREADS_PER_DISPATCH as u64;
 
+	// input and output file paths
+	let output_path = config.found.as_deref().unwrap_or("found.txt");
+	let addresses_path = config.addresses.as_deref().unwrap_or("addresses.txt");
+
 	// start monitoring thread
 	let (sender, receiver) = std::sync::mpsc::channel::<solver::SolverUpdate>();
-	let path = config.found.as_deref().unwrap_or("found.txt");
-	let mut output_file = fs::File::open(path).unwrap();
-	let null_hash: solver::types::GpuSha512Hash = bytemuck::Zeroable::zeroed();
+	let addresses = read_addresses_file(addresses_path);
+	let mut output_file = fs::File::open(output_path).unwrap();
 
 	let handle = std::thread::spawn(move || {
+		let null_hash: solver::types::GpuSha512Hash = bytemuck::Zeroable::zeroed();
+
+		// bitcoin state
+		let secp256k1 = bitcoin::key::Secp256k1::new();
+		let derivation_path: bitcoin::bip32::DerivationPath = std::str::FromStr::from_str("m/44'/0'/0'/0/0").unwrap();
+
 		while let Ok(update) = receiver.recv() {
 			let solver::SolverData::Hashes { hashes, .. } = update.data else {
 				continue;
@@ -106,6 +114,41 @@ async fn main() {
 			// process master extended keys
 			for combined in IntoIterator::into_iter(hashes) {
 				assert_ne!(combined, null_hash);
+
+				// TODO: Partially move derivations to GPU
+				let combined = combined.map(|s| s as u8);
+
+				let mut chain_code_bytes = [0; 32];
+				chain_code_bytes.copy_from_slice(&combined[32..]);
+
+				let master_extended_private_key = bitcoin::bip32::Xpriv {
+					network: bitcoin::NetworkKind::Main,
+					depth: 0,
+					parent_fingerprint: bitcoin::bip32::Fingerprint::from([0; 4]),
+					child_number: bitcoin::bip32::ChildNumber::Hardened { index: 0 },
+					private_key: bitcoin::secp256k1::SecretKey::from_slice(&combined[..32]).unwrap(),
+					chain_code: bitcoin::bip32::ChainCode::from(chain_code_bytes),
+				};
+
+				// derive child private key
+				let child_private_key = master_extended_private_key.derive_priv(&secp256k1, &derivation_path).unwrap();
+
+				// derive public key hash
+				let public_key = bitcoin::PublicKey::from_private_key(&secp256k1, &child_private_key.to_priv());
+				let public_key_hash = public_key.pubkey_hash();
+
+				let bytes: &[u8; 20] = public_key_hash.as_ref();
+				if addresses.contains(bytes) {
+					// write to output file
+					let p2pkh = bitcoin::Address::p2pkh(&public_key, bitcoin::Network::Bitcoin);
+					let line = format!(
+						"MasterExtendedKey = \"{}\", DerivedPrivateKey = \"{}\", P2PKH = \"{}\"\n",
+						master_extended_private_key, child_private_key, p2pkh
+					);
+
+					println!("Found Matching P2PKH:\n{}", line);
+					output_file.write_all(line.as_bytes()).unwrap();
+				}
 			}
 		}
 	});
