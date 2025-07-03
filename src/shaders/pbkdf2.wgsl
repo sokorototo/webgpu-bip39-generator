@@ -58,7 +58,7 @@ fn pbkdf2(
     salt: ptr<function, array<u32, SHA512_MAX_INPUT_SIZE>>, saltlen: u32,
     iter: u32, out: ptr<function, array<u32, SHA512_HASH_LENGTH>>
 ) {
-    // TODO: avoid using an intermediate array, use storage buffer and index directly in functions
+    // TODO: avoid using ptr<function> storage, use ptr<storage> buffer and index directly in functions
 
     // cache hmac-state
     var cached: SHA512_CTX;

@@ -47,7 +47,6 @@ impl DerivationPass {
 				usage: wgpu::BufferUsages::STORAGE,
 			};
 
-			// TODO: verify contents
 			device.create_buffer_init(&descriptor)
 		};
 

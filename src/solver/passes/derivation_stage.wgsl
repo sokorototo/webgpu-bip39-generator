@@ -93,6 +93,42 @@ fn indices_to_word(indices: array<u32, 12>, dest: ptr<function, array<u32, MNEMO
 @group(0) @binding(3)
 var<storage, read_write> output: array<array<u32, SHA512_HASH_LENGTH>, MAX_RESULTS_FOUND>;
 
+// extract big endian bytes from an index
+fn extract_bytes_be(input: u32) -> array<u32, 4> {
+    var bytes: array<u32, 4>;
+
+    bytes[3] = (input >> 0u) & 0xFFu;
+    bytes[2] = (input >> 8u) & 0xFFu;
+    bytes[1] = (input >> 16u) & 0xFFu;
+    bytes[0] = (input >> 24u) & 0xFFu;
+
+    return bytes;
+}
+
+// takes a combined private key and chain code, and returns a child private key and chain code
+fn hardened_derivation(combined: array<u32, SHA512_HASH_LENGTH>, index: u32) {
+    let hardened_index = 0x80000000u + index;
+    var data: array<u32, SHA512_MAX_INPUT_SIZE>;
+    let data_len = 37;
+
+    // copy private key into data
+    for (var i = 0; i < 32; i ++) {
+        data[i + 1] = combined[i];
+    }
+
+    // copy index bytes into data
+    var be_bytes = extract_bytes_be(hardened_index);
+    for (var i = 0; i < 4; i ++) {
+        data[i + 33] = be_bytes[i];
+    }
+
+    // prepare chain code
+    var chain_code: array<u32, SHA512_MAX_INPUT_SIZE>;
+    for (var i = 0; i < 32; i ++) {
+        chain_code[i] = combined[i + 32];
+    }
+}
+
 @compute @workgroup_size(WORKGROUP_SIZE)
 fn main(@builtin(global_invocation_id) global: vec3<u32>) {
     // generate indices for mnemonics words from entropy
@@ -125,8 +161,9 @@ fn main(@builtin(global_invocation_id) global: vec3<u32>) {
     }
 
     // derive master extended key
-    var key = array<u32, 12>(66, 105, 116, 99, 111, 105, 110, 32, 115, 101, 101, 100); // b"Bitcoin seed"
+    var key = array<u32, 12>(66, 105, 116, 99, 111, 105, 110, 32, 115, 101, 101, 100);
 
+    // b"Bitcoin seed"
     var key_128 = array<u32, SHA512_MAX_INPUT_SIZE>();
     for (var i = 0u; i < 12u; i++) {
         key_128[i] = key[i];

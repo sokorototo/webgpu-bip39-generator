@@ -122,25 +122,23 @@ fn verify_derived_hashes() {
 
 					for (idx, (hash, match_)) in hashes.iter().zip(matches.iter()).enumerate() {
 						assert_ne!(hash, &null_hash);
+						let gpu_hash = hash.map(|s| s as u8);
 
 						// verify hmac
 						let entropy = [constants.words[0], constants.words[1], *match_, constants.words[3]];
 						let entropy = entropy.map(|e| e.to_be()); // reverse endianness from insertion
 						let mnemonic = bip39::Mnemonic::from_entropy_in(bip39::Language::English, bytemuck::cast_slice(&entropy)).unwrap();
 
-						let gpu_hash = hash.map(|s| s as u8);
-						let gpu_hash = hex::encode(&gpu_hash);
-
 						let first = mnemonic.words().next().unwrap().to_string();
 						let sequence = mnemonic.words().skip(1).fold(first, |acc, nxt| acc + " " + nxt);
 
 						let seed = pbkdf2(sequence.as_bytes());
 						let master_extended_key = hmac_sha512(&seed, b"Bitcoin seed");
-						let cpu_hash = hex::encode(&master_extended_key);
 
 						println!("Sequence[{}] = {}", idx, sequence);
-						println!("CpuKey = {}", cpu_hash);
-						println!("GpuKey = {}\n", gpu_hash);
+						println!("CpuBip39Seed = {}", hex::encode(&seed));
+						println!("CpuMasterExtendedKey = {}", hex::encode(&master_extended_key));
+						println!("GpuMasterExtendedKey = {}\n", hex::encode(&gpu_hash));
 
 						assert_eq!(gpu_hash, cpu_hash);
 					}
