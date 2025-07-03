@@ -86,6 +86,8 @@ async fn main() {
 	// start monitoring thread
 	let (sender, receiver) = std::sync::mpsc::channel::<solver::SolverUpdate>();
 	let handle = std::thread::spawn(move || {
+		println!("Started Addresses Search Thread");
+
 		while let Ok(update) = receiver.recv() {
 			let solver::SolverData::Matches { matches, .. } = update.data else {
 				continue;
