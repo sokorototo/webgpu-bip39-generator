@@ -1,4 +1,5 @@
 use super::*;
+use std::str::FromStr;
 
 use hmac::digest::{KeyInit, Update};
 use sha2::Digest;
@@ -83,6 +84,53 @@ fn verify_filtered_mnemonics() {
 	});
 
 	solver::solve::<{ solver::MATCHES_READ_FLAG }>(&config, &device, &queue, sender);
+	let _ = thread.join().unwrap();
+}
+
+#[test]
+fn extract_derivations() {
+	let config = Config {
+		stencil: ["return", "jungle", "rocket", "skill", "_", "_", "_", "_", "jungle", "zoo", "circle", "return"]
+			.map(|s| s.to_string())
+			.into_iter()
+			.collect(),
+		range: (0, 2048),
+		addresses: gxhash::HashSet::from_iter(Some(parse_address("1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa").unwrap())),
+	};
+
+	// init devices
+	let (device, queue) = pollster::block_on(device::init());
+	let (sender, receiver) = std::sync::mpsc::channel::<solver::SolverUpdate>();
+
+	let thread = std::thread::spawn(move || {
+		let null_hash: solver::types::GpuSha512Hash = bytemuck::Zeroable::zeroed();
+		let derivation_path = bitcoin::bip32::DerivationPath::from_str("m/44'/0'/0'/0/0").unwrap();
+		let secp256k1 = bitcoin::key::Secp256k1::new();
+
+		// verifies outputs from solver
+		while let Ok(update) = receiver.recv() {
+			if let solver::SolverData::Hashes { hashes, .. } = update.data {
+				for hash in hashes {
+					assert_ne!(hash, &null_hash);
+
+					let bytes = hash.map(|s| s as u8);
+					let extended_private_key = bitcoin::bip32::Xpriv::decode(bytes.as_slice()).unwrap();
+					println!("MasterExtendedKey = {}\n", hex::encode(&bytes));
+
+					// derive child private key
+					let child_private_key = extended_private_key.derive_priv(&secp256k1, &derivation_path).unwrap();
+					println!("DerivedPrivateKey = \"{}\"", child_private_key);
+
+					// derive public key hash
+					let public_key = bitcoin::PublicKey::from_private_key(&secp256k1, &child_private_key.to_priv());
+					let p2pkh = bitcoin::Address::p2pkh(&public_key, bitcoin::Network::Bitcoin);
+					println!("Pay2PublicKeyHash = \"{}\"", p2pkh);
+				}
+			}
+		}
+	});
+
+	solver::solve::<{ solver::HASHES_READ_FLAG }>(&config, &device, &queue, sender);
 	let _ = thread.join().unwrap();
 }
 
