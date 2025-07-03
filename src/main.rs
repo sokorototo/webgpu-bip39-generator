@@ -101,6 +101,6 @@ async fn main() {
 	});
 
 	// solve
-	solver::solve::<{ solver::MATCHES_READ_FLAG | solver::HASHES_READ_FLAG }>(&config, &device, &queue, sender);
+	solver::solve::<{ solver::HASHES_READ_FLAG }>(&config, &device, &queue, sender);
 	handle.join().expect("Monitoring thread experienced an error");
 }
