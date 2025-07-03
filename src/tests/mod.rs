@@ -38,8 +38,9 @@ fn verify_filtered_mnemonics() {
 	let stencil = ["elder", "resist", "rocket", "skill", "_", "_", "_", "_", "jungle", "zoo", "circle", "circle"];
 	let config = Config {
 		stencil: stencil.map(|s| s.to_string()).into_iter().collect(),
-		range: (0, 2048),
+		range: (0, 32),
 		addresses: gxhash::HashSet::from_iter(None),
+		found: None,
 	};
 
 	// init devices
@@ -94,8 +95,9 @@ fn extract_derivations() {
 			.map(|s| s.to_string())
 			.into_iter()
 			.collect(),
-		range: (0, 2048),
+		range: (0, 32),
 		addresses: gxhash::HashSet::from_iter(Some(parse_address("1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa").unwrap())),
+		found: None,
 	};
 
 	// init devices
@@ -114,10 +116,10 @@ fn extract_derivations() {
 				let len = hashes.len() as u32;
 
 				for (idx, combined) in IntoIterator::into_iter(hashes).enumerate() {
-					// assert_ne!(combined, null_hash);
+					assert_ne!(combined, null_hash);
 
 					let combined = combined.map(|s| s as u8);
-					// println!("GpuMasterExtendedKey[{}] = \"{}\"", idx, hex::encode(&combined));
+					println!("GpuMasterExtendedKey[{}] = \"{}\"", idx, hex::encode(&combined));
 
 					let mut private_key_bytes = [0; 32];
 					private_key_bytes.copy_from_slice(&combined[..32]);
@@ -136,12 +138,12 @@ fn extract_derivations() {
 
 					// derive child private key
 					let child_private_key = extended_private_key.derive_priv(&secp256k1, &derivation_path).unwrap();
-					// println!("DerivedPrivateKey = \"{}\"", child_private_key);
+					println!("DerivedPrivateKey = \"{}\"", child_private_key);
 
 					// derive public key hash
 					let public_key = bitcoin::PublicKey::from_private_key(&secp256k1, &child_private_key.to_priv());
 					let p2pkh = bitcoin::Address::p2pkh(&public_key, bitcoin::Network::Bitcoin);
-					// println!("Pay2PublicKeyHash = \"{}\"\n", p2pkh);
+					println!("Pay2PublicKeyHash = \"{}\"\n", p2pkh);
 				}
 
 				println!("KeyDerivation took: {:?}", then.elapsed() / len);
@@ -160,8 +162,9 @@ fn verify_derived_hashes() {
 			.map(|s| s.to_string())
 			.into_iter()
 			.collect(),
-		range: (0, 2048),
+		range: (0, 32),
 		addresses: gxhash::HashSet::from_iter(Some(parse_address("1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa").unwrap())),
+		found: None,
 	};
 
 	// init devices

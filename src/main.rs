@@ -1,4 +1,4 @@
-use std::io::BufRead;
+use std::{fs, io::BufRead};
 
 pub(crate) mod device;
 pub(crate) mod solver;
@@ -18,6 +18,9 @@ pub(crate) struct Config {
 	/// file containing list of known addresses to verify against
 	#[argh(option, short = 'a', default = "default_addresses_file()", from_str_fn(read_addresses_file))]
 	addresses: gxhash::HashSet<solver::types::PublicKeyHash>,
+	/// file to which found addresses will be output
+	#[argh(option, short = 'f')]
+	found: Option<String>,
 }
 
 pub(crate) fn default_addresses_file() -> gxhash::HashSet<solver::types::PublicKeyHash> {
@@ -85,9 +88,11 @@ async fn main() {
 
 	// start monitoring thread
 	let (sender, receiver) = std::sync::mpsc::channel::<solver::SolverUpdate>();
-	let handle = std::thread::spawn(move || {
-		println!("Started Addresses Search Thread");
+	let path = config.found.as_deref().unwrap_or("found.txt");
+	let mut output_file = fs::OpenOptions::new().create(true).truncate(true).open(path).unwrap();
+	let null_hash: solver::types::GpuSha512Hash = bytemuck::Zeroable::zeroed();
 
+	let handle = std::thread::spawn(move || {
 		while let Ok(update) = receiver.recv() {
 			let solver::SolverData::Hashes { hashes, .. } = update.data else {
 				continue;
@@ -97,6 +102,11 @@ async fn main() {
 			println!("[{:03}/{:03}]: {} Addresses Found in {:?}", iteration, range, hashes.len(), then.elapsed());
 
 			then = std::time::Instant::now();
+
+			// process master extended keys
+			for combined in IntoIterator::into_iter(hashes) {
+				assert_ne!(combined, null_hash);
+			}
 		}
 	});
 
