@@ -10,7 +10,6 @@ struct PushConstants {
     word0: u32,
     word1: u32,
     word3: u32,
-    address: array<u32, P2PKH_ADDRESS_SIZE>,
     checksum: u32,
 };
 
@@ -133,9 +132,11 @@ fn main(@builtin(global_invocation_id) global: vec3<u32>) {
         key_128[i] = key[i];
     }
 
+    // first 32 bytes are private key, 2nd 32 bytes are chain code
     var master_extended_key: array<u32, SHA512_HASH_LENGTH>;
     hmac_sha512(&seed_128, SHA512_HASH_LENGTH, &key_128, &master_extended_key);
 
+    // derivation path = m/44'/0'/0'/0/0
     output[global.x] = master_extended_key;
     // TODO: continue with derivation path
 }

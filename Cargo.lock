@@ -369,6 +369,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "gxhash"
+version = "3.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f3ce1bab7aa741d4e7042b2aae415b78741f267a98a7271ea226cd5ba6c43d7d"
+dependencies = [
+ "rustversion",
+]
+
+[[package]]
 name = "half"
 version = "2.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -974,6 +983,7 @@ dependencies = [
  "base58",
  "bip39",
  "bytemuck",
+ "gxhash",
  "hex",
  "hmac",
  "pbkdf2",

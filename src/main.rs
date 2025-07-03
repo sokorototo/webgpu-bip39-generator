@@ -1,3 +1,5 @@
+use std::io::BufRead;
+
 pub(crate) mod device;
 pub(crate) mod solver;
 
@@ -14,16 +16,34 @@ pub(crate) struct Config {
 	#[argh(option, short = 'p', default = "(0,17592186044416)", from_str_fn(parse_partition))]
 	range: (u64, u64),
 	/// file containing list of known addresses to verify against
-	#[argh(option, short = 'a', from_str_fn(parse_address))]
-	address: solver::types::PublicKeyHash,
+	#[argh(option, short = 'a', from_str_fn(read_addresses_file))]
+	addresses: gxhash::HashSet<solver::types::PublicKeyHash>,
 }
 
-pub(crate) fn parse_address(path: &str) -> Result<[u32; 20], String> {
+pub(crate) fn read_addresses_file(path: &str) -> Result<gxhash::HashSet<solver::types::PublicKeyHash>, String> {
+	let file = std::fs::File::open(path).unwrap();
+	let reader = std::io::BufReader::new(file);
+	Ok(reader.lines().map(Result::unwrap).map(|l| parse_address(&l).unwrap()).collect())
+}
+
+pub(crate) fn parse_address(address: &str) -> Result<solver::types::PublicKeyHash, String> {
 	use base58::FromBase58;
 
-	let bytes = path.from_base58().unwrap();
+	let bytes = address.from_base58().unwrap();
+
+	// P2PKH should be exactly 25 bytes
+	if bytes.len() != 25 {
+		return Err(format!("Invalid length: expected 25, got {}", bytes.len()));
+	}
+
+	// Verify version byte (0x00 for mainnet P2PKH)
+	if bytes[0] != 0x00 {
+		return Err("Not a P2PKH address".to_string());
+	}
+
+	// Extract the 20-byte hash160
 	let mut buf = [0u8; 20];
-	buf.copy_from_slice(&bytes[2..22]);
+	buf.copy_from_slice(&bytes[1..21]);
 
 	Ok(buf.map(|b| b as u32))
 }

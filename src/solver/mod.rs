@@ -60,7 +60,7 @@ pub(crate) fn solve<const F: u8>(config: &super::Config, device: &wgpu::Device, 
 	// initialize passes
 	let mut filter_pass = filter::FilterPass::new(device, config.stencil.iter().map(|s| s.as_str()));
 	let reset_pass = reset::ResetPass::new(device, &filter_pass);
-	let mut derivation_pass = derivation::DerivationPass::new(device, &filter_pass, config.address);
+	let mut derivation_pass = derivation::DerivationPass::new(device, &filter_pass);
 
 	// each pass steps by THREADS_PER_DISPATCH = 2^24
 	// MAX(config.range.1) = 2^44. THREADS_PER_DISPATCH * 2^22

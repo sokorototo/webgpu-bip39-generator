@@ -43,7 +43,7 @@ impl FilterPass {
 	pub(crate) const DISPATCH_SIZE_Y: u32 = 256; // 2 ^ 8
 
 	pub(crate) fn new<'a, I: Iterator<Item = &'a str>>(device: &wgpu::Device, stencil: I) -> FilterPass {
-		debug_assert!(
+		assert!(
 			std::mem::size_of::<PushConstants>() as u32 <= device.limits().max_push_constant_size,
 			"filter::PushConstants too large for device, unable to init pipeline"
 		);

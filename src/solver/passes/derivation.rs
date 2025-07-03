@@ -5,7 +5,6 @@ use wgpu::util::DeviceExt;
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub(crate) struct PushConstants {
 	pub(crate) words: [u32; 3],
-	pub(crate) target_address: types::PublicKeyHash,
 	pub(crate) checksum: u32,
 }
 
@@ -17,8 +16,8 @@ pub(crate) struct DerivationPass {
 }
 
 impl DerivationPass {
-	pub(crate) fn new(device: &wgpu::Device, filter_pass: &filter::FilterPass, address: types::PublicKeyHash) -> DerivationPass {
-		debug_assert!(
+	pub(crate) fn new(device: &wgpu::Device, filter_pass: &filter::FilterPass) -> DerivationPass {
+		assert!(
 			std::mem::size_of::<PushConstants>() as u32 <= device.limits().max_push_constant_size,
 			"filter::PushConstants too large for device, unable to init pipeline"
 		);
@@ -155,7 +154,6 @@ impl DerivationPass {
 			output_buffer,
 			constants: PushConstants {
 				words: [filter_pass.constants.words[0], 0, filter_pass.constants.words[3]],
-				target_address: address,
 				checksum: filter_pass.constants.checksum,
 			},
 		}
