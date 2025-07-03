@@ -113,6 +113,7 @@ fn extract_derivations() {
 				for combined in hashes {
 					assert_ne!(combined, null_hash);
 					let combined = combined.map(|s| s as u8);
+					println!("GpuMasterExtendedKey = \"{}\"", hex::encode(&combined));
 
 					let mut private_key_bytes = [0; 32];
 					private_key_bytes.copy_from_slice(&combined[..32]);
