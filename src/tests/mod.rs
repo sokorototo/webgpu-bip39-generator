@@ -122,7 +122,7 @@ fn verify_derived_hashes() {
 
 					for (idx, (hash, match_)) in hashes.iter().zip(matches.iter()).enumerate() {
 						assert_ne!(hash, &null_hash);
-						let gpu_hash = hash.map(|s| s as u8);
+						let gpu_master_extended_key = hash.map(|s| s as u8);
 
 						// verify hmac
 						let entropy = [constants.words[0], constants.words[1], *match_, constants.words[3]];
@@ -133,14 +133,14 @@ fn verify_derived_hashes() {
 						let sequence = mnemonic.words().skip(1).fold(first, |acc, nxt| acc + " " + nxt);
 
 						let seed = pbkdf2(sequence.as_bytes());
-						let master_extended_key = hmac_sha512(&seed, b"Bitcoin seed");
+						let cpu_master_extended_key = hmac_sha512(&seed, b"Bitcoin seed");
 
 						println!("Sequence[{}] = {}", idx, sequence);
 						println!("CpuBip39Seed = {}", hex::encode(&seed));
-						println!("CpuMasterExtendedKey = {}", hex::encode(&master_extended_key));
-						println!("GpuMasterExtendedKey = {}\n", hex::encode(&gpu_hash));
+						println!("CpuMasterExtendedKey = {}", hex::encode(&cpu_master_extended_key));
+						println!("GpuMasterExtendedKey = {}\n", hex::encode(&gpu_master_extended_key));
 
-						assert_eq!(gpu_hash, cpu_hash);
+						assert_eq!(gpu_master_extended_key, cpu_master_extended_key);
 					}
 
 					processed += 1;
