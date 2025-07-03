@@ -2,6 +2,7 @@ pub(crate) async fn init() -> (wgpu::Device, wgpu::Queue) {
 	// acquire instance
 	let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
 		backends: wgpu::Instance::enabled_backend_features(),
+		flags: wgpu::InstanceFlags::advanced_debugging(),
 		..Default::default()
 	});
 
