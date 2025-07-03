@@ -54,7 +54,7 @@ impl DerivationPass {
 		let output_buffer = device.create_buffer(&wgpu::BufferDescriptor {
 			label: Some("derivation_outputs"),
 			size: (std::mem::size_of::<[types::GpuSha512Hash; MAX_RESULTS_FOUND]>() as usize) as wgpu::BufferAddress,
-			usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::MAP_READ,
+			usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
 			mapped_at_creation: false,
 		});
 
