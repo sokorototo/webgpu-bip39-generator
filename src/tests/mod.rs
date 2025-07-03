@@ -39,7 +39,7 @@ fn verify_filtered_mnemonics() {
 	let config = Config {
 		stencil: stencil.map(|s| s.to_string()).into_iter().collect(),
 		range: (0, 2048),
-		addresses: gxhash::HashSet::from_iter(None),
+		addresses: None,
 		found: None,
 	};
 
@@ -96,7 +96,7 @@ fn extract_derivations() {
 			.into_iter()
 			.collect(),
 		range: (0, 2048),
-		addresses: gxhash::HashSet::from_iter(Some(parse_address("1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa").unwrap())),
+		addresses: None,
 		found: None,
 	};
 
@@ -163,7 +163,7 @@ fn verify_derived_hashes() {
 			.into_iter()
 			.collect(),
 		range: (0, 2048),
-		addresses: gxhash::HashSet::from_iter(Some(parse_address("1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa").unwrap())),
+		addresses: None,
 		found: None,
 	};
 
