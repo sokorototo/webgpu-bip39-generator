@@ -114,7 +114,7 @@ fn extract_derivations() {
 					assert_ne!(hash, null_hash);
 
 					let bytes = hash.map(|s| s as u8);
-					let extended_private_key = bitcoin::bip32::Xpriv::decode(bytes.as_slice()).unwrap();
+					let extended_private_key = bitcoin::bip32::Xpriv::decode(&bytes[..32]).unwrap();
 					println!("MasterExtendedKey = {}\n", hex::encode(&bytes));
 
 					// derive child private key
