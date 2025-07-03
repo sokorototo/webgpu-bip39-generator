@@ -110,10 +110,10 @@ fn extract_derivations() {
 		// verifies outputs from solver
 		while let Ok(update) = receiver.recv() {
 			if let solver::SolverData::Hashes { hashes, .. } = update.data {
-				for combined in hashes {
+				for (idx, combined) in IntoIterator::into_iter(hashes).enumerate() {
 					assert_ne!(combined, null_hash);
 					let combined = combined.map(|s| s as u8);
-					println!("GpuMasterExtendedKey = \"{}\"", hex::encode(&combined));
+					println!("GpuMasterExtendedKey[{}] = \"{}\"", idx, hex::encode(&combined));
 
 					let mut private_key_bytes = [0; 32];
 					private_key_bytes.copy_from_slice(&combined[..32]);
