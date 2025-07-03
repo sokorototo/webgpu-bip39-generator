@@ -110,12 +110,25 @@ fn extract_derivations() {
 		// verifies outputs from solver
 		while let Ok(update) = receiver.recv() {
 			if let solver::SolverData::Hashes { hashes, .. } = update.data {
-				for hash in hashes {
-					assert_ne!(hash, null_hash);
+				for combined in hashes {
+					assert_ne!(combined, null_hash);
+					let combined = combined.map(|s| s as u8);
 
-					let bytes = hash.map(|s| s as u8);
-					let extended_private_key = bitcoin::bip32::Xpriv::decode(&bytes[..32]).unwrap();
-					println!("MasterExtendedKey = {}\n", hex::encode(&bytes));
+					let mut private_key_bytes = [0; 32];
+					private_key_bytes.copy_from_slice(&combined[..32]);
+
+					let mut chain_code_bytes = [0; 32];
+					chain_code_bytes.copy_from_slice(&combined[32..]);
+
+					let extended_private_key = bitcoin::bip32::Xpriv {
+						network: bitcoin::NetworkKind::Main,
+						depth: 0,
+						parent_fingerprint: bitcoin::bip32::Fingerprint::from([0; 4]),
+						child_number: bitcoin::bip32::ChildNumber::Hardened { index: 0 },
+						private_key: bitcoin::secp256k1::SecretKey::from_slice(&private_key_bytes).unwrap(),
+						chain_code: bitcoin::bip32::ChainCode::from(chain_code_bytes),
+					};
+					println!("MasterExtendedKey = {}\n", hex::encode(&combined));
 
 					// derive child private key
 					let child_private_key = extended_private_key.derive_priv(&secp256k1, &derivation_path).unwrap();
