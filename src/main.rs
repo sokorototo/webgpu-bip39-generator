@@ -27,7 +27,7 @@ pub(crate) struct Config {
 }
 
 pub(crate) fn read_addresses_file(path: &str) -> gxhash::HashSet<solver::types::PublicKeyHash> {
-	let file = std::fs::File::open(path).unwrap();
+	let file = std::fs::File::open(path).expect("Create an `addresses.txt`, containing P2PKH addresses to test against");
 	let reader = std::io::BufReader::new(file);
 	reader.lines().map(Result::unwrap).map(|l| parse_address(&l).unwrap()).collect()
 }
@@ -92,7 +92,7 @@ async fn main() {
 	// start monitoring thread
 	let (sender, receiver) = std::sync::mpsc::channel::<solver::SolverUpdate>();
 	let addresses = read_addresses_file(addresses_path);
-	let mut output_file = fs::File::open(output_path).unwrap();
+	let mut output_file = fs::File::open(output_path).expect("Create a `found.txt` file, for found addresses");
 
 	let handle = std::thread::spawn(move || {
 		let null_hash: solver::types::GpuSha512Hash = bytemuck::Zeroable::zeroed();
