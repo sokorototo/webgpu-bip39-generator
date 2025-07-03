@@ -111,7 +111,7 @@ fn extract_derivations() {
 		while let Ok(update) = receiver.recv() {
 			if let solver::SolverData::Hashes { hashes, .. } = update.data {
 				for hash in hashes {
-					assert_ne!(hash, &null_hash);
+					assert_ne!(hash, null_hash);
 
 					let bytes = hash.map(|s| s as u8);
 					let extended_private_key = bitcoin::bip32::Xpriv::decode(bytes.as_slice()).unwrap();
