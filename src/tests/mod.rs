@@ -110,8 +110,12 @@ fn extract_derivations() {
 		// verifies outputs from solver
 		while let Ok(update) = receiver.recv() {
 			if let solver::SolverData::Hashes { hashes, .. } = update.data {
+				let then = std::time::Instant::now();
+				let len = hashes.len() as u32;
+
 				for (idx, combined) in IntoIterator::into_iter(hashes).enumerate() {
 					assert_ne!(combined, null_hash);
+
 					let combined = combined.map(|s| s as u8);
 					println!("GpuMasterExtendedKey[{}] = \"{}\"", idx, hex::encode(&combined));
 
@@ -129,7 +133,6 @@ fn extract_derivations() {
 						private_key: bitcoin::secp256k1::SecretKey::from_slice(&private_key_bytes).unwrap(),
 						chain_code: bitcoin::bip32::ChainCode::from(chain_code_bytes),
 					};
-					println!("MasterExtendedKey = \"{}\"", hex::encode(&combined));
 
 					// derive child private key
 					let child_private_key = extended_private_key.derive_priv(&secp256k1, &derivation_path).unwrap();
@@ -140,6 +143,8 @@ fn extract_derivations() {
 					let p2pkh = bitcoin::Address::p2pkh(&public_key, bitcoin::Network::Bitcoin);
 					println!("Pay2PublicKeyHash = \"{}\"\n", p2pkh);
 				}
+
+				println!("KeyDerivation took: {:?}", then.elapsed() / len);
 			}
 		}
 	});
