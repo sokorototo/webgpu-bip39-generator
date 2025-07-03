@@ -114,7 +114,7 @@ async fn main() {
 
 			// process master extended keys
 			for combined in IntoIterator::into_iter(hashes) {
-				assert_ne!(combined, null_hash);
+				debug_assert_ne!(combined, null_hash);
 
 				// TODO: Partially move derivations to GPU
 				let combined = combined.map(|s| s as u8);
