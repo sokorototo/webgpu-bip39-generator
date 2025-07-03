@@ -129,7 +129,7 @@ fn extract_derivations() {
 						private_key: bitcoin::secp256k1::SecretKey::from_slice(&private_key_bytes).unwrap(),
 						chain_code: bitcoin::bip32::ChainCode::from(chain_code_bytes),
 					};
-					println!("MasterExtendedKey = {}\n", hex::encode(&combined));
+					println!("MasterExtendedKey = \"{}\"", hex::encode(&combined));
 
 					// derive child private key
 					let child_private_key = extended_private_key.derive_priv(&secp256k1, &derivation_path).unwrap();
@@ -138,7 +138,7 @@ fn extract_derivations() {
 					// derive public key hash
 					let public_key = bitcoin::PublicKey::from_private_key(&secp256k1, &child_private_key.to_priv());
 					let p2pkh = bitcoin::Address::p2pkh(&public_key, bitcoin::Network::Bitcoin);
-					println!("Pay2PublicKeyHash = \"{}\"", p2pkh);
+					println!("Pay2PublicKeyHash = \"{}\"\n", p2pkh);
 				}
 			}
 		}
