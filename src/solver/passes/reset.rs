@@ -4,7 +4,7 @@ pub(crate) struct ResetPass {
 	pub pipeline: wgpu::ComputePipeline,
 	pub bind_group: wgpu::BindGroup,
 }
-
+	
 impl ResetPass {
 	pub(crate) const DISPATCH_SIZE_X: u32 = 1;
 	pub(crate) const DISPATCH_SIZE_Y: u32 = 1;

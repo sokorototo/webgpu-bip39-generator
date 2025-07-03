@@ -22,6 +22,7 @@ pub(crate) struct SolverUpdate {
 	pub(crate) data: SolverData,
 }
 
+#[allow(unused)]
 pub(crate) enum SolverData {
 	Matches {
 		constants: passes::filter::PushConstants,
