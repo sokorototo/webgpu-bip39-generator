@@ -75,10 +75,10 @@ impl FilterPass {
 			source: wgpu::ShaderSource::Wgsl(source.into()),
 		};
 
-		// #[cfg(debug_assertions)]
+		#[cfg(debug_assertions)]
 		let shader = device.create_shader_module(descriptor);
-		// #[cfg(not(debug_assertions))]
-		// let shader = unsafe { device.create_shader_module_trusted(descriptor, wgpu::ShaderRuntimeChecks::unchecked()) };
+		#[cfg(not(debug_assertions))]
+		let shader = unsafe { device.create_shader_module_trusted(descriptor, wgpu::ShaderRuntimeChecks::unchecked()) };
 
 		// configure bind group layout
 		let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {

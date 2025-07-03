@@ -6,7 +6,7 @@ pub(crate) mod solver;
 #[cfg(test)]
 pub(crate) mod tests;
 
-#[derive(Debug, Clone, argh::FromArgs)]
+#[derive(argh::FromArgs)]
 /// Generates the remaining words in a BTC seed phrase by brute-force. Uses the WebGPU API
 pub(crate) struct Config {
 	/// string describing known and unknown words in the mnemonic sentence. Must be 12 words long
