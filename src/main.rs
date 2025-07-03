@@ -16,8 +16,12 @@ pub(crate) struct Config {
 	#[argh(option, short = 'p', default = "(0,17592186044416)", from_str_fn(parse_partition))]
 	range: (u64, u64),
 	/// file containing list of known addresses to verify against
-	#[argh(option, short = 'a', from_str_fn(read_addresses_file))]
+	#[argh(option, short = 'a', default = "default_addresses_file()", from_str_fn(read_addresses_file))]
 	addresses: gxhash::HashSet<solver::types::PublicKeyHash>,
+}
+
+pub(crate) fn default_addresses_file() -> gxhash::HashSet<solver::types::PublicKeyHash> {
+	read_addresses_file("addresses.txt").unwrap()
 }
 
 pub(crate) fn read_addresses_file(path: &str) -> Result<gxhash::HashSet<solver::types::PublicKeyHash>, String> {
