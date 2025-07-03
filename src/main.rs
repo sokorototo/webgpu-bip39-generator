@@ -95,6 +95,7 @@ async fn main() {
 	let mut output_file = fs::File::open(output_path).expect("Create a `found.txt` file, for found addresses");
 
 	let handle = std::thread::spawn(move || {
+		println!("[000/000]: Result Collection Thread is starting...");
 		let null_hash: solver::types::GpuSha512Hash = bytemuck::Zeroable::zeroed();
 
 		// bitcoin state
