@@ -1,5 +1,5 @@
 // dispatch size is dynamic, through dispatch_indirect: X=*,Y=*,Z=1
-const WORKGROUP_SIZE = 32; // 2 ^ 5
+const WORKGROUP_SIZE = 256; // 2 ^ 5
 const P2PKH_ADDRESS_SIZE = 20;
 
 const MAX_RESULTS_FOUND = 1398101;

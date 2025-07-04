@@ -1,5 +1,5 @@
 const WORKGROUP_SIZE = 256; // 2 ^ 8
-const NEXT_PASS_WORKGROUP_SIZE = 32; // 2 ^ 8
+const NEXT_PASS_WORKGROUP_SIZE = 256; // 2 ^ 8
 
 const DISPATCH_SIZE_X = 256; // 2 ^ 8
 const DISPATCH_SIZE_Y = 256; // 2 ^ 8
