@@ -80,7 +80,7 @@ async fn main() {
 		log::info!("Result collection thread has started");
 
 		// track progress
-		let range = 1 + (config.range.1 - config.range.0) / solver::THREADS_PER_DISPATCH as u64;
+		let range = 1 + (config.range.1 - config.range.0) / solver::STEP as u64;
 
 		// input and output files
 		let output_path = config.found.as_deref().unwrap_or("found.txt");
@@ -147,7 +147,7 @@ async fn main() {
 			}
 
 			// log performance
-			let iteration = (update.step / solver::THREADS_PER_DISPATCH as u64) + 1;
+			let iteration = (update.step / solver::STEP as u64) + 1;
 			log::warn!(target: "main::monitoring_thread", "[{:03}/{:03}]: {} Addresses processed in {:?}", iteration, range, hashes.len(), then.elapsed());
 		}
 	});

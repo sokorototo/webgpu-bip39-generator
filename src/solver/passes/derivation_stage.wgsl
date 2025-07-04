@@ -11,6 +11,8 @@ struct PushConstants {
     word1: u32,
     word3: u32,
     checksum: u32,
+    offset: u32,
+    count: u32
 };
 
 var<push_constant> constants: PushConstants;
@@ -131,8 +133,12 @@ fn hardened_derivation(combined: array<u32, SHA512_HASH_LENGTH>, index: u32) {
 
 @compute @workgroup_size(WORKGROUP_SIZE)
 fn main(@builtin(global_invocation_id) global: vec3<u32>) {
+    if (global.x + constants.offset) > constants.count {
+        return;
+    }
+
     // generate indices for mnemonics words from entropy
-    let word_2 = matches[global.x]; // TODO: global.x is invalid, as we might over-dispatch
+    let word_2 = matches[global.x + constants.offset];
 
     var entropy = array<u32, ENTROPIES>(constants.word0, constants.word1, word_2, constants.word3);
     var indices = entropy_to_indices(entropy);
@@ -174,6 +180,6 @@ fn main(@builtin(global_invocation_id) global: vec3<u32>) {
     hmac_sha512(&seed_128, SHA512_HASH_LENGTH, &key_128, &master_extended_key);
 
     // derivation path = m/44'/0'/0'/0/0
-    output[global.x] = master_extended_key;
+    output[global.x + constants.offset] = master_extended_key;
     // TODO: continue with derivation path
 }

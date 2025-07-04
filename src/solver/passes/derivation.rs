@@ -6,6 +6,8 @@ use wgpu::util::DeviceExt;
 pub(crate) struct PushConstants {
 	pub(crate) words: [u32; 3],
 	pub(crate) checksum: u32,
+	pub(crate) offset: u32,
+	pub(crate) count: u32,
 }
 
 pub(crate) struct DerivationPass {
@@ -16,9 +18,9 @@ pub(crate) struct DerivationPass {
 }
 
 impl DerivationPass {
-	// derivations has a much smaller workgroup size
-	#[allow(unused)]
 	pub(crate) const WORKGROUP_SIZE: u32 = 256;
+	// TODO: increase to increase performance, while maintaining stability per platform
+	pub(crate) const DISPATCHES_PER_ITERATION: u32 = 4;
 
 	pub(crate) fn new(device: &wgpu::Device, filter_pass: &filter::FilterPass) -> DerivationPass {
 		assert!(
@@ -155,6 +157,8 @@ impl DerivationPass {
 			constants: PushConstants {
 				words: [filter_pass.constants.words[0], 0, filter_pass.constants.words[3]],
 				checksum: filter_pass.constants.checksum,
+				offset: 0,
+				count: 0,
 			},
 		}
 	}

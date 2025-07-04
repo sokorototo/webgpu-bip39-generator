@@ -7,10 +7,10 @@ pub(crate) mod utils;
 use passes::*;
 
 // 2 ^ 24 = 16777216
-pub(crate) const THREADS_PER_DISPATCH: u32 = 16777216; // WORKGROUP_SIZE * DISPATCH_SIZE_X * DISPATCH_SIZE_Y
+pub(crate) const STEP: u32 = 16777216; // WORKGROUP_SIZE * DISPATCH_SIZE_X * DISPATCH_SIZE_Y
 
 // 6.25% chance of finding a match ~ 1398101
-pub(crate) const MAX_RESULTS_FOUND: usize = (THREADS_PER_DISPATCH as usize) / 12;
+pub(crate) const MAX_RESULTS_FOUND: usize = (STEP as usize) / 12;
 
 // flags to enable sending certain data through the sender
 pub(crate) const MATCHES_READ_FLAG: u8 = 0b0000_0001;
@@ -63,9 +63,9 @@ pub(crate) fn solve<const F: u8>(config: &super::Config, device: &wgpu::Device, 
 	// track time taken per iteration
 	let mut then: Option<time::Instant> = None;
 
-	// each pass steps by THREADS_PER_DISPATCH = 2^24
-	// MAX(config.range.1) = 2^44. THREADS_PER_DISPATCH * 2^22
-	for step in (config.range.0..config.range.1).step_by(THREADS_PER_DISPATCH as _) {
+	// each pass steps by STEP = 2^24
+	// MAX(config.range.1) = 2^44. STEP * 2^22
+	for step in (config.range.0..config.range.1).step_by(STEP as _) {
 		// track time per iteration
 		match then.as_mut() {
 			Some(p) => {
@@ -77,19 +77,19 @@ pub(crate) fn solve<const F: u8>(config: &super::Config, device: &wgpu::Device, 
 		};
 
 		// 0: update push constants
-		let entropy = (step / THREADS_PER_DISPATCH as u64) as u32;
+		let entropy = (step / STEP as u64) as u32;
 		let word1 = (filter_pass.constants.words[1] & 0xfff00000) | entropy;
 
 		filter_pass.constants.words[1] = word1;
 		derivation_pass.constants.words[1] = word1;
 
-		// 1: queue compute work
-		let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("compute_work") });
+		// 1: queue reset and filter pass
+		let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("filter_pass") });
 
 		{
 			log::debug!("Queueing Reset Pass");
 
-			// queue reset pass
+			// queue: reset pass
 			let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
 				label: Some("reset_pass"),
 				timestamp_writes: None,
@@ -97,15 +97,13 @@ pub(crate) fn solve<const F: u8>(config: &super::Config, device: &wgpu::Device, 
 
 			pass.set_pipeline(&reset_pass.pipeline);
 			pass.set_bind_group(0, &reset_pass.bind_group, &[]);
-
-			// dispatch
 			pass.dispatch_workgroups(reset::ResetPass::DISPATCH_SIZE_X, reset::ResetPass::DISPATCH_SIZE_Y, 1);
 		}
 
 		{
 			log::debug!("Queueing Filter Pass");
 
-			// queue filter pass
+			// queue: filter pass
 			let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
 				label: Some("filter_pass"),
 				timestamp_writes: None,
@@ -116,8 +114,8 @@ pub(crate) fn solve<const F: u8>(config: &super::Config, device: &wgpu::Device, 
 			pass.set_bind_group(0, &filter_pass.bind_group, &[]);
 
 			// calculate dimensions of dispatch
-			let threads = (config.range.1 - step).min(THREADS_PER_DISPATCH as _);
-			let dispatch = ((threads as u32 + filter::FilterPass::WORKGROUP_SIZE - 1) / filter::FilterPass::WORKGROUP_SIZE).max(1);
+			let threads = (config.range.1 - step).min(STEP as _);
+			let dispatch = ((threads as u32 + filter::FilterPass::WORKGROUP_SIZE - 1) / filter::FilterPass::WORKGROUP_SIZE);
 
 			let dispatch_x = filter::FilterPass::DISPATCH_SIZE_X.min(dispatch);
 			let dispatch_y = (dispatch / filter::FilterPass::DISPATCH_SIZE_Y).max(1);
@@ -126,57 +124,16 @@ pub(crate) fn solve<const F: u8>(config: &super::Config, device: &wgpu::Device, 
 			pass.dispatch_workgroups(dispatch_x, dispatch_y, 1);
 		}
 
-		// queue derivation pass, if results are needed
-		if (F & HASHES_READ_FLAG == HASHES_READ_FLAG) {
-			log::debug!("Queueing Derivation Pass");
-
-			let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-				label: Some("derivation_pass"),
-				timestamp_writes: None,
-			});
-
-			pass.set_pipeline(&derivation_pass.pipeline);
-			pass.set_push_constants(0, bytemuck::cast_slice(&[derivation_pass.constants]));
-			pass.set_bind_group(0, &derivation_pass.bind_group, &[]);
-
-			// dispatch workgroups for exact results produced by filter pass
-			pass.dispatch_workgroups_indirect(&filter_pass.dispatch_buffer, 0);
-			// pass.dispatch_workgroups(1, 1, 1);
-		}
-
-		// submit
-		queue.submit([encoder.finish()]);
-		device.poll(wgpu::PollType::Wait).unwrap();
-
-		utils::inspect_buffer(device, &filter_pass.dispatch_buffer, |dispatch: &[u32]| {
-			let threads = dispatch[0] * derivation::DerivationPass::WORKGROUP_SIZE;
-			log::warn!(target: "solver::derivation_stage", "Threads = {}, DispatchX = {}, DispatchY = {}, DispatchZ = {}, WorkgroupSize = {}", threads, dispatch[0], dispatch[1], dispatch[2], derivation::DerivationPass::WORKGROUP_SIZE);
-		});
-
-		// 2: copy results buffers to staging buffers
-		let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("copy_work") });
-
-		// queue read results from filter pass
+		// queue: copy results from filter stage to staging buffer
 		if let Some(dest) = matches_dest.as_ref() {
 			encoder.copy_buffer_to_buffer(&filter_pass.matches_buffer, 0, &dest, 0, (mem::size_of::<[types::Word2; MAX_RESULTS_FOUND]>()) as wgpu::BufferAddress);
 		};
 
-		// queue read results from derivation pass
-		if let Some(dest) = hashes_dest.as_ref() {
-			encoder.copy_buffer_to_buffer(
-				&derivation_pass.output_buffer,
-				0,
-				&dest,
-				0,
-				(mem::size_of::<[types::GpuSha512Hash; MAX_RESULTS_FOUND]>()) as wgpu::BufferAddress,
-			);
-		};
-
 		// submit
 		queue.submit([encoder.finish()]);
 		device.poll(wgpu::PollType::Wait).unwrap();
 
-		// 3: send copies of compute work over sender
+		// 2: read X matches produced by filter stage
 		let mut matches_count = 0;
 
 		if (F & MATCHES_READ_FLAG == MATCHES_READ_FLAG) || (F & HASHES_READ_FLAG == HASHES_READ_FLAG) {
@@ -211,7 +168,61 @@ pub(crate) fn solve<const F: u8>(config: &super::Config, device: &wgpu::Device, 
 			}
 		}
 
-		// send entropies if requested
+		// 3: queue derivations passes
+		let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("derivations_pass") });
+
+		// queue: derivation pass
+		if (F & HASHES_READ_FLAG == HASHES_READ_FLAG) {
+			log::debug!("Queueing Derivation Pass and Dispatches");
+
+			let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+				label: Some("derivation_pass"),
+				timestamp_writes: None,
+			});
+
+			pass.set_pipeline(&derivation_pass.pipeline);
+			pass.set_bind_group(0, &derivation_pass.bind_group, &[]);
+
+			// call derivations pass in smaller dispatches to avoid GPU timeouts
+			let mut processed = 0u32;
+			let mut constants = derivation_pass.constants;
+			let threads_per_iteration = derivation::DerivationPass::DISPATCHES_PER_ITERATION * derivation::DerivationPass::WORKGROUP_SIZE;
+
+			loop {
+				constants.offset = processed;
+
+				// prepare dispatch
+				let threads = (matches_count - processed).min(threads_per_iteration);
+				let dispatch_x = (threads + derivation::DerivationPass::WORKGROUP_SIZE - 1) / derivation::DerivationPass::WORKGROUP_SIZE;
+
+				log::warn!(target: "solver::derivations_stage", "Processed = {}, DispatchX = {}, WorkgroupSize = {}", processed, dispatch_x, derivation::DerivationPass::WORKGROUP_SIZE);
+				pass.set_push_constants(0, bytemuck::cast_slice(&[constants]));
+				pass.dispatch_workgroups(dispatch_x, 1, 1);
+
+				// are we done?
+				processed = processed.saturating_add(threads);
+				if processed >= matches_count {
+					break;
+				}
+			}
+		}
+
+		// queue: copy results from derivation pass to staging buffer
+		if let Some(dest) = hashes_dest.as_ref() {
+			encoder.copy_buffer_to_buffer(
+				&derivation_pass.output_buffer,
+				0,
+				&dest,
+				0,
+				(mem::size_of::<[types::GpuSha512Hash; MAX_RESULTS_FOUND]>()) as wgpu::BufferAddress,
+			);
+		};
+
+		// submit
+		queue.submit([encoder.finish()]);
+		device.poll(wgpu::PollType::Wait).unwrap();
+
+		// 4: send copies of compute work over sender
 		if let Some(matches_dest) = matches_dest.as_ref() {
 			log::info!("Mapping `Matches` destination buffer");
 

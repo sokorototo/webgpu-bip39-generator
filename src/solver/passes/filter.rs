@@ -34,7 +34,6 @@ pub(crate) struct FilterPass {
 	pub bind_group: wgpu::BindGroup,
 	pub matches_buffer: wgpu::Buffer,
 	pub count_buffer: wgpu::Buffer,
-	pub dispatch_buffer: wgpu::Buffer,
 }
 
 impl FilterPass {
@@ -49,12 +48,6 @@ impl FilterPass {
 		);
 
 		// prepare buffers
-		let dispatch_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-			label: Some("solver_dispatch"),
-			contents: bytemuck::cast_slice(&[1, 1, 1u32]),
-			usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::INDIRECT | wgpu::BufferUsages::MAP_READ,
-		});
-
 		let count_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
 			label: Some("solver_count"),
 			contents: bytemuck::cast_slice(&[0]),
@@ -85,16 +78,6 @@ impl FilterPass {
 			label: Some("filter_bind_group_layout"),
 			entries: &[
 				wgpu::BindGroupLayoutEntry {
-					binding: 0,
-					visibility: wgpu::ShaderStages::COMPUTE,
-					ty: wgpu::BindingType::Buffer {
-						ty: wgpu::BufferBindingType::Storage { read_only: false },
-						has_dynamic_offset: false,
-						min_binding_size: None,
-					},
-					count: None,
-				},
-				wgpu::BindGroupLayoutEntry {
 					binding: 1,
 					visibility: wgpu::ShaderStages::COMPUTE,
 					ty: wgpu::BindingType::Buffer {
@@ -122,10 +105,6 @@ impl FilterPass {
 			label: Some("filter_bind_group"),
 			layout: &bind_group_layout,
 			entries: &[
-				wgpu::BindGroupEntry {
-					binding: 0,
-					resource: dispatch_buffer.as_entire_binding(),
-				},
 				wgpu::BindGroupEntry {
 					binding: 1,
 					resource: count_buffer.as_entire_binding(),
@@ -163,7 +142,6 @@ impl FilterPass {
 			bind_group,
 			matches_buffer,
 			count_buffer,
-			dispatch_buffer,
 			constants: PushConstants::from_stencil(stencil),
 		}
 	}

@@ -18,9 +18,6 @@ struct PushConstants {
 
 var<push_constant> constants: PushConstants;
 
-@group(0) @binding(0) // X Y Z: X = COUNT
-var<storage, read_write> workgroups: array<u32, 3>;
-
 @group(0) @binding(1)
 var<storage, read_write> count: atomic<u32>;
 
@@ -52,9 +49,5 @@ fn main(
     if short256 >> 4 == constants.checksum {
         var index = atomicAdd(&count, 1u);
         matches[index] = word_2;
-
-        // update workgroups count for next pass
-        var threads = index + 1;
-        workgroups[0] = (threads + NEXT_PASS_WORKGROUP_SIZE - 1) / NEXT_PASS_WORKGROUP_SIZE;
     }
 }
