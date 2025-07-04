@@ -25,6 +25,10 @@ pub(crate) struct Config {
 	/// file to which found addresses will be output
 	#[argh(option, short = 'f')]
 	found: Option<String>,
+	/// how many threads to process per iteration in the derivation stage.
+	/// multiplied by 256 to arrive at final value
+	#[argh(option, default = "4", short = 'i')]
+	threads: u32,
 }
 
 pub(crate) fn read_addresses_file(path: &str) -> gxhash::HashSet<solver::types::PublicKeyHash> {

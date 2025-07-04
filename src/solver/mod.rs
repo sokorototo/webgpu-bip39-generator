@@ -186,7 +186,7 @@ pub(crate) fn solve<const F: u8>(config: &super::Config, device: &wgpu::Device, 
 			// call derivations pass in smaller dispatches to avoid GPU timeouts
 			let mut processed = 0u32;
 			let mut constants = derivation_pass.constants;
-			let threads_per_iteration = derivation::DerivationPass::DISPATCHES_PER_ITERATION * derivation::DerivationPass::WORKGROUP_SIZE;
+			let threads_per_iteration = config.threads * derivation::DerivationPass::WORKGROUP_SIZE;
 
 			loop {
 				constants.offset = processed;

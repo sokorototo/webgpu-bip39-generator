@@ -19,8 +19,6 @@ pub(crate) struct DerivationPass {
 
 impl DerivationPass {
 	pub(crate) const WORKGROUP_SIZE: u32 = 256;
-	// TODO: increase to increase performance, while maintaining stability per platform
-	pub(crate) const DISPATCHES_PER_ITERATION: u32 = 4;
 
 	pub(crate) fn new(device: &wgpu::Device, filter_pass: &filter::FilterPass) -> DerivationPass {
 		assert!(
