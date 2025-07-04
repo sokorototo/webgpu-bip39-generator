@@ -72,7 +72,7 @@ pub(crate) fn solve<const F: u8>(config: &super::Config, device: &wgpu::Device, 
 		match then.as_mut() {
 			Some(p) => {
 				let now = time::Instant::now();
-				log::info!("Compute Passes took: {:?}", p.elapsed());
+				log::warn!("Compute Passes took: {:?}", p.elapsed());
 				*p = now;
 			}
 			None => then = Some(time::Instant::now()),
@@ -89,7 +89,7 @@ pub(crate) fn solve<const F: u8>(config: &super::Config, device: &wgpu::Device, 
 		let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("compute_work") });
 
 		{
-			log::info!("Queueing Reset Pass");
+			log::debug!("Queueing Reset Pass");
 
 			// queue reset pass
 			let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
@@ -105,7 +105,7 @@ pub(crate) fn solve<const F: u8>(config: &super::Config, device: &wgpu::Device, 
 		}
 
 		{
-			log::info!("Queueing Filter Pass");
+			log::debug!("Queueing Filter Pass");
 
 			// queue filter pass
 			let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
@@ -121,19 +121,17 @@ pub(crate) fn solve<const F: u8>(config: &super::Config, device: &wgpu::Device, 
 			let threads = (config.range.1 - step).min(THREADS_PER_DISPATCH as _);
 			let dispatch = ((threads as u32 + filter::FilterPass::WORKGROUP_SIZE - 1) / filter::FilterPass::WORKGROUP_SIZE).max(1);
 
-			log::warn!(target: "solver::filter_stage", "PreDispatch = {}, ExpectedThreads = {}", dispatch, dispatch * filter::FilterPass::WORKGROUP_SIZE);
-
 			let dispatch_x = filter::FilterPass::DISPATCH_SIZE_X.min(dispatch);
-			let dispatch_y = (dispatch / filter::FilterPass::DISPATCH_SIZE_Y).max(1);
-			// let dispatch_y = 1;
+			// let dispatch_y = (dispatch / filter::FilterPass::DISPATCH_SIZE_Y).max(1);
+			let dispatch_y = 1;
 
-			log::warn!(target: "solver::filter_stage", "Threads = {}, DispatchX = {}, DispatchY = {}, ActualDispatch = {}", threads, dispatch_x, dispatch_y, dispatch_x * dispatch_y);
+			log::info!(target: "solver::filter_stage", "Threads = {}, DispatchX = {}, DispatchY = {}, WorkgroupSize = {}", threads, dispatch_x, dispatch_y, filter::FilterPass::WORKGROUP_SIZE);
 			pass.dispatch_workgroups(dispatch_x, dispatch_y, 1);
 		}
 
 		// queue derivation pass, if results are needed
 		if (F & HASHES_READ_FLAG == HASHES_READ_FLAG) {
-			log::info!("Queueing Derivation Pass");
+			log::debug!("Queueing Derivation Pass");
 
 			let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
 				label: Some("derivation_pass"),
@@ -153,34 +151,28 @@ pub(crate) fn solve<const F: u8>(config: &super::Config, device: &wgpu::Device, 
 		queue.submit([encoder.finish()]);
 		device.poll(wgpu::PollType::Wait).unwrap();
 
-		utils::inspect_buffer(device, &filter_pass.dispatch_buffer, |dispatch: &[u32]| {
-			log::info!("DispatchBuffer = {:?}", dispatch);
-		});
-
-		continue;
-
 		// 2: copy results buffers to staging buffers
-		// let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("copy_work") });
+		let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("copy_work") });
 
-		// // queue read results from filter pass
-		// if let Some(dest) = matches_dest.as_ref() {
-		// 	encoder.copy_buffer_to_buffer(&filter_pass.matches_buffer, 0, &dest, 0, (mem::size_of::<[types::Word2; MAX_RESULTS_FOUND]>()) as wgpu::BufferAddress);
-		// };
+		// queue read results from filter pass
+		if let Some(dest) = matches_dest.as_ref() {
+			encoder.copy_buffer_to_buffer(&filter_pass.matches_buffer, 0, &dest, 0, (mem::size_of::<[types::Word2; MAX_RESULTS_FOUND]>()) as wgpu::BufferAddress);
+		};
 
-		// // queue read results from derivation pass
-		// if let Some(dest) = hashes_dest.as_ref() {
-		// 	encoder.copy_buffer_to_buffer(
-		// 		&derivation_pass.output_buffer,
-		// 		0,
-		// 		&dest,
-		// 		0,
-		// 		(mem::size_of::<[types::GpuSha512Hash; MAX_RESULTS_FOUND]>()) as wgpu::BufferAddress,
-		// 	);
-		// };
+		// queue read results from derivation pass
+		if let Some(dest) = hashes_dest.as_ref() {
+			encoder.copy_buffer_to_buffer(
+				&derivation_pass.output_buffer,
+				0,
+				&dest,
+				0,
+				(mem::size_of::<[types::GpuSha512Hash; MAX_RESULTS_FOUND]>()) as wgpu::BufferAddress,
+			);
+		};
 
-		// // submit
-		// queue.submit([encoder.finish()]);
-		// device.poll(wgpu::PollType::Wait).unwrap();
+		// submit
+		queue.submit([encoder.finish()]);
+		device.poll(wgpu::PollType::Wait).unwrap();
 
 		// 3: send copies of compute work over sender
 		let mut matches_count = 0;

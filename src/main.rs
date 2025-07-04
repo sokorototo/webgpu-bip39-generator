@@ -5,11 +5,12 @@ use std::{
 
 pub(crate) mod device;
 pub(crate) mod solver;
+pub(self) mod utils;
 
 #[cfg(test)]
 pub(crate) mod tests;
 
-#[derive(argh::FromArgs)]
+#[derive(argh::FromArgs, Clone)]
 /// Generates the remaining words in a BTC seed phrase by brute-force. Uses the WebGPU API
 pub(crate) struct Config {
 	/// string describing known and unknown words in the mnemonic sentence. Must be 12 words long
@@ -62,53 +63,39 @@ pub(crate) fn parse_partition(path: &str) -> Result<(u64, u64), String> {
 
 #[pollster::main]
 async fn main() {
+	simple_logger::init_with_level(log::Level::Info).unwrap();
+
+	// acquire and verify config
 	let config: Config = argh::from_env();
-	if cfg!(debug_assertions) {
-		simple_logger::init_with_level(log::Level::Debug).unwrap();
-	} else {
-		simple_logger::init_with_level(log::Level::Warn).unwrap();
-	};
-
-	// verify stencil words
-	if config.range.1 > 2u64.pow(44) || config.range.0 > config.range.1 {
-		panic!("Invalid Range: Maximum problem space is [0, 17592186044416] (2^44)");
-	};
-
-	if let Some(unknown) = config.stencil.iter().find(|w| *w != "_" && !bip39::Language::English.word_list().contains(&w.as_str())) {
-		panic!("Invalid Stencil: Contains Unknown Word {}", unknown)
-	};
-
-	if config.stencil.len() != 12 || !config.stencil.iter().enumerate().all(|(idx, ss)| (4..8).contains(&idx) || (ss != "_")) {
-		panic!("Invalid Stencil Pattern: Expected 4 words, 4 stars and 4 words\n Eg: throw roast bulk opinion * * * * guide female change thought");
-	};
-
-	log::info!("Verified Stencil and Config Range");
+	utils::verify_config(&config);
 
 	// initialize device and device
 	let (device, queue) = device::init().await;
 
-	// progress tracking
-	let range = 1 + (config.range.1 - config.range.0) / solver::THREADS_PER_DISPATCH as u64;
-
-	// input and output file paths
-	let output_path = config.found.as_deref().unwrap_or("found.txt");
-	let addresses_path = config.addresses.as_deref().unwrap_or("addresses.txt");
-	log::info!("Output File = \"{}\", Addresses = \"{}\"", output_path, addresses_path);
-
-	let mut output_file = fs::File::open(output_path).expect("Create a `found.txt` file, for found addresses");
-	let addresses = read_addresses_file(addresses_path);
-	log::info!("Parsed Addresses Set: Len = {}", addresses.len());
-
 	// start monitoring thread
+	let config_ = config.clone();
 	let (sender, receiver) = std::sync::mpsc::channel::<solver::SolverUpdate>();
 
 	let handle = std::thread::spawn(move || {
 		log::info!("Result collection thread has started");
-		let null_hash: solver::types::GpuSha512Hash = bytemuck::Zeroable::zeroed();
+
+		// track progress
+		let range = 1 + (config.range.1 - config.range.0) / solver::THREADS_PER_DISPATCH as u64;
+
+		// input and output files
+		let output_path = config.found.as_deref().unwrap_or("found.txt");
+		let mut output_file = fs::File::open(output_path).expect("Create a `found.txt` file, for found addresses");
+
+		let addresses_path = config.addresses.as_deref().unwrap_or("addresses.txt");
+		let addresses = read_addresses_file(addresses_path);
+
+		log::info!("Output File = \"{}\", Addresses = \"{}\"", output_path, addresses_path);
+		log::info!("Parsed Addresses Set: Len = {}", addresses.len());
 
 		// bitcoin state
 		let secp256k1 = bitcoin::key::Secp256k1::new();
 		let derivation_path: bitcoin::bip32::DerivationPath = std::str::FromStr::from_str("m/44'/0'/0'/0/0").unwrap();
+		let null_hash: solver::types::GpuSha512Hash = bytemuck::Zeroable::zeroed();
 
 		// consume messages
 		while let Ok(update) = receiver.recv() {
@@ -163,11 +150,11 @@ async fn main() {
 
 			// log performance
 			let iteration = (update.step / solver::THREADS_PER_DISPATCH as u64) + 1;
-			log::info!(target: "main::monitoring_thread", "[{:03}/{:03}]: {} Addresses processed in {:?}", iteration, range, hashes.len(), then.elapsed());
+			log::warn!(target: "main::monitoring_thread", "[{:03}/{:03}]: {} Addresses processed in {:?}", iteration, range, hashes.len(), then.elapsed());
 		}
 	});
 
 	// solve
-	solver::solve::<{ solver::HASHES_READ_FLAG }>(&config, &device, &queue, sender);
+	solver::solve::<{ solver::HASHES_READ_FLAG }>(&config_, &device, &queue, sender);
 	handle.join().expect("Monitoring thread experienced an error");
 }

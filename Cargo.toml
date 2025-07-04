@@ -15,8 +15,10 @@ bip39 = "2"
 base58 = "0.2"
 
 # Logging
-simple_logger = "5.0.0"
 log = "0.4.27"
+simple_logger = { version = "5.0.0", default-features = false, features = [
+	"colors",
+] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 wgpu = { version = "25", default-features = false, features = [

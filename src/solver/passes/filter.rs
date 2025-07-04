@@ -52,7 +52,7 @@ impl FilterPass {
 		let dispatch_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
 			label: Some("solver_dispatch"),
 			contents: bytemuck::cast_slice(&[1, 1, 1u32]),
-			usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::INDIRECT | wgpu::BufferUsages::MAP_READ,
+			usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::INDIRECT,
 		});
 
 		let count_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
