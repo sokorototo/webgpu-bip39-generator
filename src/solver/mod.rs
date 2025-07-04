@@ -195,7 +195,7 @@ pub(crate) fn solve<const F: u8>(config: &super::Config, device: &wgpu::Device, 
 				let threads = (matches_count - processed).min(threads_per_iteration);
 				let dispatch_x = (threads + derivation::DerivationPass::WORKGROUP_SIZE - 1) / derivation::DerivationPass::WORKGROUP_SIZE;
 
-				log::warn!(target: "solver::derivations_stage", "Processed = {}, DispatchX = {}, WorkgroupSize = {}", processed, dispatch_x, derivation::DerivationPass::WORKGROUP_SIZE);
+				log::warn!(target: "solver::derivations_stage", "Remaining = {}, DispatchX = {}, WorkgroupSize = {}", matches_count - processed, dispatch_x, derivation::DerivationPass::WORKGROUP_SIZE);
 				pass.set_push_constants(0, bytemuck::cast_slice(&[constants]));
 				pass.dispatch_workgroups(dispatch_x, 1, 1);
 
