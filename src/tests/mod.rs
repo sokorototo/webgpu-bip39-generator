@@ -41,6 +41,7 @@ fn verify_filtered_mnemonics() {
 		range: (0, 2048),
 		addresses: None,
 		found: None,
+		threads: 0,
 	};
 
 	// init devices
@@ -98,6 +99,7 @@ fn extract_derivations() {
 		range: (0, 2048),
 		addresses: None,
 		found: None,
+		threads: 0,
 	};
 
 	// init devices
@@ -165,6 +167,7 @@ fn verify_derived_hashes() {
 		range: (0, 2048),
 		addresses: None,
 		found: None,
+		threads: 0,
 	};
 
 	// init devices
