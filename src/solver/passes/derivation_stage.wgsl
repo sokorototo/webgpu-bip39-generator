@@ -153,7 +153,7 @@ fn main(@builtin(global_invocation_id) global: vec3<u32>) {
 
     // derive mnemonic seed
     var seed: array<u32, SHA512_HASH_LENGTH>;
-    pbkdf2(&word_bytes, length, &mnemonic_128, mnemonic_len, 2048, &seed);
+    // pbkdf2(&word_bytes, length, &mnemonic_128, mnemonic_len, 16, &seed);
 
     var seed_128 = array<u32, SHA512_MAX_INPUT_SIZE>();
     for (var i = 0u; i < SHA512_HASH_LENGTH; i++) {

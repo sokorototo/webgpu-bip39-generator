@@ -119,6 +119,8 @@ async fn main() {
 			for combined in hashes.iter() {
 				debug_assert_ne!(*combined, null_hash);
 
+				continue;
+
 				// TODO: Partially move derivations to GPU
 				let combined = combined.map(|s| s as u8);
 
@@ -157,7 +159,7 @@ async fn main() {
 
 			// log performance
 			let iteration = (update.step / solver::THREADS_PER_DISPATCH as u64) + 1;
-			log::info!(target: "monitoring_thread", "[{:03}/{:03}]: {} Addresses processed in {:?}", iteration, range, hashes.len(), then.elapsed());
+			log::info!(target: "main::monitoring_thread", "[{:03}/{:03}]: {} Addresses processed in {:?}", iteration, range, hashes.len(), then.elapsed());
 		}
 	});
 

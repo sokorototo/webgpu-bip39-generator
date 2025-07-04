@@ -63,11 +63,21 @@ pub(crate) fn solve<const F: u8>(config: &super::Config, device: &wgpu::Device, 
 	log::info!("Initialized Compute Passes");
 
 	// track time taken per iteration
-	let mut then = time::Instant::now();
+	let mut then: Option<time::Instant> = None;
 
 	// each pass steps by THREADS_PER_DISPATCH = 2^24
 	// MAX(config.range.1) = 2^44. THREADS_PER_DISPATCH * 2^22
 	for step in (config.range.0..config.range.1).step_by(THREADS_PER_DISPATCH as _) {
+		// track time per iteration
+		match then.as_mut() {
+			Some(p) => {
+				let now = time::Instant::now();
+				log::info!("Compute Passes took: {:?}", p.elapsed());
+				*p = now;
+			}
+			None => then = Some(time::Instant::now()),
+		};
+
 		// 0: update push constants
 		let entropy = (step / THREADS_PER_DISPATCH as u64) as u32;
 		let word1 = (filter_pass.constants.words[1] & 0xfff00000) | entropy;
@@ -79,6 +89,8 @@ pub(crate) fn solve<const F: u8>(config: &super::Config, device: &wgpu::Device, 
 		let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("compute_work") });
 
 		{
+			log::info!("Queueing Reset Pass");
+
 			// queue reset pass
 			let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
 				label: Some("reset_pass"),
@@ -93,6 +105,8 @@ pub(crate) fn solve<const F: u8>(config: &super::Config, device: &wgpu::Device, 
 		}
 
 		{
+			log::info!("Queueing Filter Pass");
+
 			// queue filter pass
 			let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
 				label: Some("filter_pass"),
@@ -107,11 +121,20 @@ pub(crate) fn solve<const F: u8>(config: &super::Config, device: &wgpu::Device, 
 			let threads = (config.range.1 - step).min(THREADS_PER_DISPATCH as _);
 			let dispatch = ((threads as u32 + filter::FilterPass::WORKGROUP_SIZE - 1) / filter::FilterPass::WORKGROUP_SIZE).max(1);
 
-			pass.dispatch_workgroups(filter::FilterPass::DISPATCH_SIZE_X.min(dispatch), (dispatch / filter::FilterPass::DISPATCH_SIZE_Y).max(1), 1);
+			log::warn!(target: "solver::filter_stage", "PreDispatch = {}, ExpectedThreads = {}", dispatch, dispatch * filter::FilterPass::WORKGROUP_SIZE);
+
+			let dispatch_x = filter::FilterPass::DISPATCH_SIZE_X.min(dispatch);
+			let dispatch_y = (dispatch / filter::FilterPass::DISPATCH_SIZE_Y).max(1);
+			// let dispatch_y = 1;
+
+			log::warn!(target: "solver::filter_stage", "Threads = {}, DispatchX = {}, DispatchY = {}, ActualDispatch = {}", threads, dispatch_x, dispatch_y, dispatch_x * dispatch_y);
+			pass.dispatch_workgroups(dispatch_x, dispatch_y, 1);
 		}
 
 		// queue derivation pass, if results are needed
 		if (F & HASHES_READ_FLAG == HASHES_READ_FLAG) {
+			log::info!("Queueing Derivation Pass");
+
 			let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
 				label: Some("derivation_pass"),
 				timestamp_writes: None,
@@ -122,37 +145,42 @@ pub(crate) fn solve<const F: u8>(config: &super::Config, device: &wgpu::Device, 
 			pass.set_bind_group(0, &derivation_pass.bind_group, &[]);
 
 			// dispatch workgroups for exact results produced by filter pass
-			pass.dispatch_workgroups_indirect(&filter_pass.dispatch_buffer, 0);
+			// pass.dispatch_workgroups_indirect(&filter_pass.dispatch_buffer, 0);
+			pass.dispatch_workgroups(16, 1, 1);
 		}
 
 		// submit
 		queue.submit([encoder.finish()]);
 		device.poll(wgpu::PollType::Wait).unwrap();
 
+		utils::inspect_buffer(device, &filter_pass.dispatch_buffer, |dispatch: &[u32]| {
+			log::info!("DispatchBuffer = {:?}", dispatch);
+		});
+
+		continue;
+
 		// 2: copy results buffers to staging buffers
-		let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("copy_work") });
+		// let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("copy_work") });
 
-		// queue read results from filter pass
-		if let Some(dest) = matches_dest.as_ref() {
-			encoder.copy_buffer_to_buffer(&filter_pass.matches_buffer, 0, &dest, 0, (mem::size_of::<[types::Word2; MAX_RESULTS_FOUND]>()) as wgpu::BufferAddress);
-		};
+		// // queue read results from filter pass
+		// if let Some(dest) = matches_dest.as_ref() {
+		// 	encoder.copy_buffer_to_buffer(&filter_pass.matches_buffer, 0, &dest, 0, (mem::size_of::<[types::Word2; MAX_RESULTS_FOUND]>()) as wgpu::BufferAddress);
+		// };
 
-		// queue read results from derivation pass
-		if let Some(dest) = hashes_dest.as_ref() {
-			encoder.copy_buffer_to_buffer(
-				&derivation_pass.output_buffer,
-				0,
-				&dest,
-				0,
-				(mem::size_of::<[types::GpuSha512Hash; MAX_RESULTS_FOUND]>()) as wgpu::BufferAddress,
-			);
-		};
+		// // queue read results from derivation pass
+		// if let Some(dest) = hashes_dest.as_ref() {
+		// 	encoder.copy_buffer_to_buffer(
+		// 		&derivation_pass.output_buffer,
+		// 		0,
+		// 		&dest,
+		// 		0,
+		// 		(mem::size_of::<[types::GpuSha512Hash; MAX_RESULTS_FOUND]>()) as wgpu::BufferAddress,
+		// 	);
+		// };
 
-		// submit
-		queue.submit([encoder.finish()]);
-		device.poll(wgpu::PollType::Wait).unwrap();
-
-		log::info!("Executed {} threads in {:?}", (config.range.1 - step).min(THREADS_PER_DISPATCH as _), then.elapsed());
+		// // submit
+		// queue.submit([encoder.finish()]);
+		// device.poll(wgpu::PollType::Wait).unwrap();
 
 		// 3: send copies of compute work over sender
 		let mut matches_count = 0;
@@ -181,7 +209,7 @@ pub(crate) fn solve<const F: u8>(config: &super::Config, device: &wgpu::Device, 
 			device.poll(wgpu::PollType::Wait).unwrap();
 			matches_count = count_recv.recv_timeout(time::Duration::from_secs(5)).expect("Unable to acquire matches_count from buffer");
 
-			log::debug!("Valid Mnemonic Phrases Found: {}", matches_count);
+			log::info!("Valid Mnemonic Phrases Found: {}", matches_count);
 
 			// output buffer was full
 			if matches_count >= MAX_RESULTS_FOUND as _ {
@@ -191,7 +219,7 @@ pub(crate) fn solve<const F: u8>(config: &super::Config, device: &wgpu::Device, 
 
 		// send entropies if requested
 		if let Some(matches_dest) = matches_dest.as_ref() {
-			log::debug!("Mapping `Matches` destination buffer");
+			log::info!("Mapping `Matches` destination buffer");
 
 			// map results_destination
 			let matches_dest_ = matches_dest.clone();
@@ -224,7 +252,7 @@ pub(crate) fn solve<const F: u8>(config: &super::Config, device: &wgpu::Device, 
 
 		// send hashes if requested
 		if let Some(hashes_dest) = hashes_dest.as_ref() {
-			log::debug!("Mapping `Hashes` destination buffer");
+			log::info!("Mapping `Hashes` destination buffer");
 
 			// map results_destination
 			let hashes_dest_ = hashes_dest.clone();
@@ -254,8 +282,5 @@ pub(crate) fn solve<const F: u8>(config: &super::Config, device: &wgpu::Device, 
 			// poll map_async callback
 			device.poll(wgpu::PollType::Wait).unwrap();
 		}
-
-		// update time tracker
-		then = time::Instant::now();
 	}
 }
