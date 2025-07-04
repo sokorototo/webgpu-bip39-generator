@@ -1,4 +1,5 @@
 const WORKGROUP_SIZE = 256; // 2 ^ 8
+const NEXT_PASS_WORKGROUP_SIZE = 32; // 2 ^ 8
 
 const DISPATCH_SIZE_X = 256; // 2 ^ 8
 const DISPATCH_SIZE_Y = 256; // 2 ^ 8
@@ -18,7 +19,7 @@ struct PushConstants {
 var<push_constant> constants: PushConstants;
 
 @group(0) @binding(0) // X Y Z: X = COUNT
-var<storage, read_write> dispatch: array<u32, 3>;
+var<storage, read_write> workgroups: array<u32, 3>;
 
 @group(0) @binding(1)
 var<storage, read_write> count: atomic<u32>;
@@ -52,7 +53,8 @@ fn main(
         var index = atomicAdd(&count, 1u);
         matches[index] = word_2;
 
-        // update matches count
-        dispatch[0] = (index + 1);
+        // update workgroups count for next pass
+        var threads = index + 1;
+        workgroups[0] = (threads + NEXT_PASS_WORKGROUP_SIZE - 1) / NEXT_PASS_WORKGROUP_SIZE;
     }
 }

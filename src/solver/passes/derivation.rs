@@ -16,6 +16,10 @@ pub(crate) struct DerivationPass {
 }
 
 impl DerivationPass {
+	// derivations has a much smaller workgroup size
+	#[allow(unused)]
+	pub(crate) const WORKGROUP_SIZE: usize = 32;
+
 	pub(crate) fn new(device: &wgpu::Device, filter_pass: &filter::FilterPass) -> DerivationPass {
 		assert!(
 			std::mem::size_of::<PushConstants>() as u32 <= device.limits().max_push_constant_size,

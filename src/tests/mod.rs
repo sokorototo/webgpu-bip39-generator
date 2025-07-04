@@ -336,7 +336,7 @@ fn test_short256() {
 		pass.set_bind_group(0, &bind_group, &[]);
 
 		// calculate dimensions of dispatch
-		pass.dispatch_workgroups(INPUTS as _, 1, 1);
+		pass.dispatch_workgroups(1, 1, 1);
 	}
 
 	// submit commands
@@ -494,7 +494,7 @@ fn test_pbkdf2() {
 		pass.set_bind_group(0, &bind_group, &[]);
 
 		// calculate dimensions of dispatch
-		pass.dispatch_workgroups(INPUTS as _, 1, 1);
+		pass.dispatch_workgroups(1, 1, 1);
 	}
 
 	// submit commands

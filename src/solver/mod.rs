@@ -122,8 +122,7 @@ pub(crate) fn solve<const F: u8>(config: &super::Config, device: &wgpu::Device, 
 			let dispatch = ((threads as u32 + filter::FilterPass::WORKGROUP_SIZE - 1) / filter::FilterPass::WORKGROUP_SIZE).max(1);
 
 			let dispatch_x = filter::FilterPass::DISPATCH_SIZE_X.min(dispatch);
-			// let dispatch_y = (dispatch / filter::FilterPass::DISPATCH_SIZE_Y).max(1);
-			let dispatch_y = 1;
+			let dispatch_y = (dispatch / filter::FilterPass::DISPATCH_SIZE_Y).max(1);
 
 			log::info!(target: "solver::filter_stage", "Threads = {}, DispatchX = {}, DispatchY = {}, WorkgroupSize = {}", threads, dispatch_x, dispatch_y, filter::FilterPass::WORKGROUP_SIZE);
 			pass.dispatch_workgroups(dispatch_x, dispatch_y, 1);
@@ -143,8 +142,7 @@ pub(crate) fn solve<const F: u8>(config: &super::Config, device: &wgpu::Device, 
 			pass.set_bind_group(0, &derivation_pass.bind_group, &[]);
 
 			// dispatch workgroups for exact results produced by filter pass
-			// pass.dispatch_workgroups_indirect(&filter_pass.dispatch_buffer, 0);
-			pass.dispatch_workgroups(16, 1, 1);
+			pass.dispatch_workgroups_indirect(&filter_pass.dispatch_buffer, 0);
 		}
 
 		// submit
