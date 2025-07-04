@@ -18,7 +18,7 @@ pub(crate) struct DerivationPass {
 impl DerivationPass {
 	// derivations has a much smaller workgroup size
 	#[allow(unused)]
-	pub(crate) const WORKGROUP_SIZE: usize = 32;
+	pub(crate) const WORKGROUP_SIZE: u32 = 32;
 
 	pub(crate) fn new(device: &wgpu::Device, filter_pass: &filter::FilterPass) -> DerivationPass {
 		assert!(

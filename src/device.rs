@@ -38,7 +38,5 @@ pub(crate) async fn init() -> (wgpu::Device, wgpu::Queue) {
 		panic!("Device lost: {:?}. Message: {}", err, cb);
 	}));
 
-	log::info!("Initialized Device");
-
 	(device, queue)
 }

@@ -60,8 +60,6 @@ pub(crate) fn solve<const F: u8>(config: &super::Config, device: &wgpu::Device, 
 	let reset_pass = reset::ResetPass::new(device, &filter_pass);
 	let mut derivation_pass = derivation::DerivationPass::new(device, &filter_pass);
 
-	log::info!("Initialized Compute Passes");
-
 	// track time taken per iteration
 	let mut then: Option<time::Instant> = None;
 
@@ -124,7 +122,7 @@ pub(crate) fn solve<const F: u8>(config: &super::Config, device: &wgpu::Device, 
 			let dispatch_x = filter::FilterPass::DISPATCH_SIZE_X.min(dispatch);
 			let dispatch_y = (dispatch / filter::FilterPass::DISPATCH_SIZE_Y).max(1);
 
-			log::info!(target: "solver::filter_stage", "Threads = {}, DispatchX = {}, DispatchY = {}, WorkgroupSize = {}", threads, dispatch_x, dispatch_y, filter::FilterPass::WORKGROUP_SIZE);
+			log::warn!(target: "solver::filter_stage", "Threads = {}, DispatchX = {}, DispatchY = {}, WorkgroupSize = {}", threads, dispatch_x, dispatch_y, filter::FilterPass::WORKGROUP_SIZE);
 			pass.dispatch_workgroups(dispatch_x, dispatch_y, 1);
 		}
 
@@ -142,12 +140,18 @@ pub(crate) fn solve<const F: u8>(config: &super::Config, device: &wgpu::Device, 
 			pass.set_bind_group(0, &derivation_pass.bind_group, &[]);
 
 			// dispatch workgroups for exact results produced by filter pass
-			pass.dispatch_workgroups_indirect(&filter_pass.dispatch_buffer, 0);
+			// pass.dispatch_workgroups_indirect(&filter_pass.dispatch_buffer, 0);
+			pass.dispatch_workgroups(1, 1, 1);
 		}
 
 		// submit
 		queue.submit([encoder.finish()]);
 		device.poll(wgpu::PollType::Wait).unwrap();
+
+		utils::inspect_buffer(device, &filter_pass.dispatch_buffer, |dispatch: &[u32]| {
+			let threads = dispatch[0] * derivation::DerivationPass::WORKGROUP_SIZE;
+			log::warn!(target: "solver::derivation_stage", "Threads = {}, DispatchX = {}, DispatchY = {}, DispatchZ = {}, WorkgroupSize = {}", threads, dispatch[0], dispatch[1], dispatch[2], derivation::DerivationPass::WORKGROUP_SIZE);
+		});
 
 		// 2: copy results buffers to staging buffers
 		let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("copy_work") });
@@ -199,7 +203,7 @@ pub(crate) fn solve<const F: u8>(config: &super::Config, device: &wgpu::Device, 
 			device.poll(wgpu::PollType::Wait).unwrap();
 			matches_count = count_recv.recv_timeout(time::Duration::from_secs(5)).expect("Unable to acquire matches_count from buffer");
 
-			log::info!("Valid Mnemonic Phrases Found: {}", matches_count);
+			log::warn!("Valid Mnemonic Phrases Found: {}", matches_count);
 
 			// output buffer was full
 			if matches_count >= MAX_RESULTS_FOUND as _ {
