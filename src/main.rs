@@ -62,8 +62,12 @@ pub(crate) fn parse_partition(path: &str) -> Result<(u64, u64), String> {
 
 #[pollster::main]
 async fn main() {
-	simple_logger::init_with_env().unwrap();
 	let config: Config = argh::from_env();
+	if cfg!(debug_assertions) {
+		simple_logger::init_with_level(log::Level::Debug).unwrap();
+	} else {
+		simple_logger::init_with_level(log::Level::Warn).unwrap();
+	};
 
 	// verify stencil words
 	if config.range.1 > 2u64.pow(44) || config.range.0 > config.range.1 {
