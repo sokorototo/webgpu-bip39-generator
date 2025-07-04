@@ -140,8 +140,8 @@ pub(crate) fn solve<const F: u8>(config: &super::Config, device: &wgpu::Device, 
 			pass.set_bind_group(0, &derivation_pass.bind_group, &[]);
 
 			// dispatch workgroups for exact results produced by filter pass
-			// pass.dispatch_workgroups_indirect(&filter_pass.dispatch_buffer, 0);
-			pass.dispatch_workgroups(1, 1, 1);
+			pass.dispatch_workgroups_indirect(&filter_pass.dispatch_buffer, 0);
+			// pass.dispatch_workgroups(1, 1, 1);
 		}
 
 		// submit
