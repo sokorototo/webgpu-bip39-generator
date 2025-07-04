@@ -27,7 +27,7 @@ pub(crate) struct Config {
 	found: Option<String>,
 	/// how many threads to process per iteration in the derivation stage.
 	/// multiplied by 256 to arrive at final value
-	#[argh(option, default = "4", short = 'i')]
+	#[argh(option, default = "4", short = 't')]
 	threads: u32,
 }
 
