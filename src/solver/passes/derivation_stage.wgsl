@@ -132,7 +132,7 @@ fn hardened_derivation(combined: array<u32, SHA512_HASH_LENGTH>, index: u32) {
 @compute @workgroup_size(WORKGROUP_SIZE)
 fn main(@builtin(global_invocation_id) global: vec3<u32>) {
     // generate indices for mnemonics words from entropy
-    let word_2 = matches[global.x];
+    let word_2 = matches[global.x]; // TODO: global.x is invalid, as we might over-dispatch
 
     var entropy = array<u32, ENTROPIES>(constants.word0, constants.word1, word_2, constants.word3);
     var indices = entropy_to_indices(entropy);
