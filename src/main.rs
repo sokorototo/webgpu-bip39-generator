@@ -110,6 +110,8 @@ async fn main() {
 			for combined in hashes.iter() {
 				debug_assert_ne!(*combined, null_hash);
 
+				continue;
+
 				// TODO: Partially move derivations to GPU
 				let combined = combined.map(|s| s as u8);
 
