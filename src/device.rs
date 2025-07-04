@@ -31,12 +31,14 @@ pub(crate) async fn init() -> (wgpu::Device, wgpu::Queue) {
 
 	// init error handling
 	device.on_uncaptured_error(Box::new(|err| {
-		eprintln!("Uncaptured error: {}", err);
+		log::error!("Uncaptured error: {}", err);
 	}));
 
 	device.set_device_lost_callback(Box::new(|err, cb| {
 		panic!("Device lost: {:?}. Message: {}", err, cb);
 	}));
+
+	log::info!("Initialized Device");
 
 	(device, queue)
 }

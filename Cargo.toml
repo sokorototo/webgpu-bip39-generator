@@ -4,13 +4,19 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-bitcoin = "0.32.6"
 argh = "0.1"
-bytemuck = "1"
 pollster = { version = "0.4", features = ["macro"], default-features = false }
+bytemuck = "1"
+gxhash = "3.5.0"
+
+# Parsing and Key derivation
+bitcoin = "0.32.6"
 bip39 = "2"
 base58 = "0.2"
-gxhash = "3.5.0"
+
+# Logging
+simple_logger = "5.0.0"
+log = "0.4.27"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 wgpu = { version = "25", default-features = false, features = [

@@ -29,6 +29,7 @@ pub(crate) struct Config {
 pub(crate) fn read_addresses_file(path: &str) -> gxhash::HashSet<solver::types::PublicKeyHash> {
 	let file = std::fs::File::open(path).expect("Create an `addresses.txt`, containing P2PKH addresses to test against");
 	let reader = std::io::BufReader::new(file);
+
 	reader.lines().map(Result::unwrap).map(|l| parse_address(&l).unwrap()).collect()
 }
 
@@ -61,60 +62,62 @@ pub(crate) fn parse_partition(path: &str) -> Result<(u64, u64), String> {
 
 #[pollster::main]
 async fn main() {
+	simple_logger::init_with_env().unwrap();
 	let config: Config = argh::from_env();
 
-	// address range must be below 2^44
+	// verify stencil words
 	if config.range.1 > 2u64.pow(44) || config.range.0 > config.range.1 {
 		panic!("Invalid Range: Maximum problem space is [0, 17592186044416] (2^44)");
 	};
 
-	// stencil words must be valid
 	if let Some(unknown) = config.stencil.iter().find(|w| *w != "_" && !bip39::Language::English.word_list().contains(&w.as_str())) {
 		panic!("Invalid Stencil: Contains Unknown Word {}", unknown)
 	};
 
-	// stencil must match expected pattern of 4 words, 4 underscores and 4 words
 	if config.stencil.len() != 12 || !config.stencil.iter().enumerate().all(|(idx, ss)| (4..8).contains(&idx) || (ss != "_")) {
 		panic!("Invalid Stencil Pattern: Expected 4 words, 4 stars and 4 words\n Eg: throw roast bulk opinion * * * * guide female change thought");
 	};
 
-	// get device and device
+	log::info!("Verified Stencil and Config Range");
+
+	// initialize device and device
 	let (device, queue) = device::init().await;
 
 	// progress tracking
-	let mut then = std::time::Instant::now();
 	let range = 1 + (config.range.1 - config.range.0) / solver::THREADS_PER_DISPATCH as u64;
 
 	// input and output file paths
 	let output_path = config.found.as_deref().unwrap_or("found.txt");
 	let addresses_path = config.addresses.as_deref().unwrap_or("addresses.txt");
+	log::info!("Output File = \"{}\", Addresses = \"{}\"", output_path, addresses_path);
+
+	let mut output_file = fs::File::open(output_path).expect("Create a `found.txt` file, for found addresses");
+	let addresses = read_addresses_file(addresses_path);
+	log::info!("Parsed Addresses Set: Len = {}", addresses.len());
 
 	// start monitoring thread
 	let (sender, receiver) = std::sync::mpsc::channel::<solver::SolverUpdate>();
-	let addresses = read_addresses_file(addresses_path);
-	let mut output_file = fs::File::open(output_path).expect("Create a `found.txt` file, for found addresses");
 
 	let handle = std::thread::spawn(move || {
-		println!("[000/000]: Result Collection Thread is starting...");
+		log::info!("Result collection thread has started");
 		let null_hash: solver::types::GpuSha512Hash = bytemuck::Zeroable::zeroed();
 
 		// bitcoin state
 		let secp256k1 = bitcoin::key::Secp256k1::new();
 		let derivation_path: bitcoin::bip32::DerivationPath = std::str::FromStr::from_str("m/44'/0'/0'/0/0").unwrap();
 
+		// consume messages
 		while let Ok(update) = receiver.recv() {
 			let solver::SolverData::Hashes { hashes, .. } = update.data else {
 				continue;
 			};
 
-			let iteration = (update.step / solver::THREADS_PER_DISPATCH as u64) + 1;
-			println!("[{:03}/{:03}]: {} Addresses Found in {:?}", iteration, range, hashes.len(), then.elapsed());
-
-			then = std::time::Instant::now();
+			// performance tracking
+			let then = std::time::Instant::now();
 
 			// process master extended keys
-			for combined in IntoIterator::into_iter(hashes) {
-				debug_assert_ne!(combined, null_hash);
+			for combined in hashes.iter() {
+				debug_assert_ne!(*combined, null_hash);
 
 				// TODO: Partially move derivations to GPU
 				let combined = combined.map(|s| s as u8);
@@ -147,10 +150,14 @@ async fn main() {
 						master_extended_private_key, child_private_key, p2pkh
 					);
 
-					println!("Found Matching P2PKH:\n{}", line);
+					log::info!("Found Matching P2PKH:\n{}", line);
 					output_file.write_all(line.as_bytes()).unwrap();
 				}
 			}
+
+			// log performance
+			let iteration = (update.step / solver::THREADS_PER_DISPATCH as u64) + 1;
+			log::info!(target: "monitoring_thread", "[{:03}/{:03}]: {} Addresses processed in {:?}", iteration, range, hashes.len(), then.elapsed());
 		}
 	});
 

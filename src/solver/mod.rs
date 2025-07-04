@@ -60,6 +60,11 @@ pub(crate) fn solve<const F: u8>(config: &super::Config, device: &wgpu::Device, 
 	let reset_pass = reset::ResetPass::new(device, &filter_pass);
 	let mut derivation_pass = derivation::DerivationPass::new(device, &filter_pass);
 
+	log::info!("Initialized Compute Passes");
+
+	// track time taken per iteration
+	let mut then = time::Instant::now();
+
 	// each pass steps by THREADS_PER_DISPATCH = 2^24
 	// MAX(config.range.1) = 2^44. THREADS_PER_DISPATCH * 2^22
 	for step in (config.range.0..config.range.1).step_by(THREADS_PER_DISPATCH as _) {
@@ -147,6 +152,8 @@ pub(crate) fn solve<const F: u8>(config: &super::Config, device: &wgpu::Device, 
 		queue.submit([encoder.finish()]);
 		device.poll(wgpu::PollType::Wait).unwrap();
 
+		log::info!("Executed {} threads in {:?}", (config.range.1 - step).min(THREADS_PER_DISPATCH as _), then.elapsed());
+
 		// 3: send copies of compute work over sender
 		let mut matches_count = 0;
 
@@ -166,7 +173,7 @@ pub(crate) fn solve<const F: u8>(config: &super::Config, device: &wgpu::Device, 
 					_count_buffer.unmap();
 				}
 				Err(err) => {
-					eprintln!("Unable to reset count buffer: {}", err);
+					log::error!("Unable to reset count buffer: {}", err);
 				}
 			});
 
@@ -174,7 +181,7 @@ pub(crate) fn solve<const F: u8>(config: &super::Config, device: &wgpu::Device, 
 			device.poll(wgpu::PollType::Wait).unwrap();
 			matches_count = count_recv.recv_timeout(time::Duration::from_secs(5)).expect("Unable to acquire matches_count from buffer");
 
-			println!("Addresses Found: {}", matches_count);
+			log::debug!("Valid Mnemonic Phrases Found: {}", matches_count);
 
 			// output buffer was full
 			if matches_count >= MAX_RESULTS_FOUND as _ {
@@ -184,6 +191,8 @@ pub(crate) fn solve<const F: u8>(config: &super::Config, device: &wgpu::Device, 
 
 		// send entropies if requested
 		if let Some(matches_dest) = matches_dest.as_ref() {
+			log::debug!("Mapping `Matches` destination buffer");
+
 			// map results_destination
 			let matches_dest_ = matches_dest.clone();
 			let sender_ = sender.clone();
@@ -215,6 +224,8 @@ pub(crate) fn solve<const F: u8>(config: &super::Config, device: &wgpu::Device, 
 
 		// send hashes if requested
 		if let Some(hashes_dest) = hashes_dest.as_ref() {
+			log::debug!("Mapping `Hashes` destination buffer");
+
 			// map results_destination
 			let hashes_dest_ = hashes_dest.clone();
 			let sender_ = sender.clone();
@@ -243,5 +254,8 @@ pub(crate) fn solve<const F: u8>(config: &super::Config, device: &wgpu::Device, 
 			// poll map_async callback
 			device.poll(wgpu::PollType::Wait).unwrap();
 		}
+
+		// update time tracker
+		then = time::Instant::now();
 	}
 }
