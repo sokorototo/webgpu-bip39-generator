@@ -78,7 +78,7 @@ async fn main() {
 
 	// start monitoring thread
 	let config_ = config.clone();
-	let (sender, receiver) = std::sync::mpsc::channel::<solver::StageComputation>();
+	let (sender, receiver) = flume::unbounded::<solver::StageComputation>();
 
 	let handle = std::thread::spawn(move || {
 		log::info!("Result collection thread has started");
@@ -102,54 +102,59 @@ async fn main() {
 		let null_hash: solver::types::DerivationsOutput = bytemuck::Zeroable::zeroed();
 
 		// consume messages
-		while let Ok(comp) = receiver.recv() {
+		loop {
 			// performance tracking
 			let then = std::time::Instant::now();
-
-			// process master extended keys
-			for output in comp.outputs.iter() {
-				debug_assert_ne!(output, &null_hash);
-				continue;
-
-				// TODO: Partially move derivations to GPU
-				let combined = output.hash.map(|s| s as u8);
-
-				let mut chain_code_bytes = [0; 32];
-				chain_code_bytes.copy_from_slice(&combined[32..]);
-
-				let master_extended_private_key = bitcoin::bip32::Xpriv {
-					network: bitcoin::NetworkKind::Main,
-					depth: 0,
-					parent_fingerprint: bitcoin::bip32::Fingerprint::from([0; 4]),
-					child_number: bitcoin::bip32::ChildNumber::Hardened { index: 0 },
-					private_key: bitcoin::secp256k1::SecretKey::from_slice(&combined[..32]).unwrap(),
-					chain_code: bitcoin::bip32::ChainCode::from(chain_code_bytes),
-				};
-
-				// derive child private key
-				let child_private_key = master_extended_private_key.derive_priv(&secp256k1, &derivation_path).unwrap();
-
-				// derive public key hash
-				let public_key = bitcoin::PublicKey::from_private_key(&secp256k1, &child_private_key.to_priv());
-				let public_key_hash = public_key.pubkey_hash();
-
-				let bytes: &[u8; 20] = public_key_hash.as_ref();
-				if addresses.contains(bytes) {
-					// write to output file
-					let p2pkh = bitcoin::Address::p2pkh(&public_key, bitcoin::Network::Bitcoin);
-					let line = format!(
-						"MasterExtendedKey = \"{}\", DerivedPrivateKey = \"{}\", P2PKH = \"{}\"\n",
-						master_extended_private_key, child_private_key, p2pkh
-					);
-
-					log::info!("Found Matching P2PKH:\n{}", line);
-					output_file.write_all(line.as_bytes()).unwrap();
-				}
+			if receiver.len() >= 64 {
+				log::error!(target: "main::monitoring_thread", "Severe Bottleneck from monitoring thread: Queue length = {}", receiver.len())
 			}
 
-			// log performance
-			let iteration = (comp.step / solver::STEP as u64) + 1;
-			log::warn!(target: "main::monitoring_thread", "[{:03}/{:03}]: {} Addresses processed in {:?}", iteration, range, comp.outputs.len(), then.elapsed());
+			for comp in receiver.drain() {
+				// process master extended keys
+				for output in comp.outputs.iter() {
+					debug_assert_ne!(output, &null_hash);
+					continue;
+
+					// TODO: Partially move derivations to GPU
+					let combined = output.hash.map(|s| s as u8);
+
+					let mut chain_code_bytes = [0; 32];
+					chain_code_bytes.copy_from_slice(&combined[32..]);
+
+					let master_extended_private_key = bitcoin::bip32::Xpriv {
+						network: bitcoin::NetworkKind::Main,
+						depth: 0,
+						parent_fingerprint: bitcoin::bip32::Fingerprint::from([0; 4]),
+						child_number: bitcoin::bip32::ChildNumber::Hardened { index: 0 },
+						private_key: bitcoin::secp256k1::SecretKey::from_slice(&combined[..32]).unwrap(),
+						chain_code: bitcoin::bip32::ChainCode::from(chain_code_bytes),
+					};
+
+					// derive child private key
+					let child_private_key = master_extended_private_key.derive_priv(&secp256k1, &derivation_path).unwrap();
+
+					// derive public key hash
+					let public_key = bitcoin::PublicKey::from_private_key(&secp256k1, &child_private_key.to_priv());
+					let public_key_hash = public_key.pubkey_hash();
+
+					let bytes: &[u8; 20] = public_key_hash.as_ref();
+					if addresses.contains(bytes) {
+						// write to output file
+						let p2pkh = bitcoin::Address::p2pkh(&public_key, bitcoin::Network::Bitcoin);
+						let line = format!(
+							"MasterExtendedKey = \"{}\", DerivedPrivateKey = \"{}\", P2PKH = \"{}\"\n",
+							master_extended_private_key, child_private_key, p2pkh
+						);
+
+						log::info!("Found Matching P2PKH:\n{}", line);
+						output_file.write_all(line.as_bytes()).unwrap();
+					}
+				}
+
+				// log performance
+				let iteration = (comp.step / solver::STEP as u64) + 1;
+				log::warn!(target: "main::monitoring_thread", "[{:03}/{:03}]: {} Addresses processed in {:?}", iteration, range, comp.outputs.len(), then.elapsed());
+			}
 		}
 	});
 

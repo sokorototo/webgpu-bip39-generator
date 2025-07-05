@@ -1,4 +1,4 @@
-use std::{mem, sync, time};
+use std::{mem, time};
 
 pub(crate) mod passes;
 pub(crate) mod types;
@@ -20,7 +20,7 @@ pub(crate) struct StageComputation {
 }
 
 #[allow(unused)]
-pub(crate) fn solve(config: &super::Config, device: &wgpu::Device, queue: &wgpu::Queue, sender: sync::mpsc::Sender<StageComputation>) {
+pub(crate) fn solve(config: &super::Config, device: &wgpu::Device, queue: &wgpu::Queue, sender: flume::Sender<StageComputation>) {
 	// initialize destination buffers
 	let hashes_dest = device.create_buffer(&wgpu::BufferDescriptor {
 		label: Some("solver_hashes_destination"),
@@ -104,7 +104,7 @@ pub(crate) fn solve(config: &super::Config, device: &wgpu::Device, queue: &wgpu:
 
 		// 2: read X matches produced by filter stage
 		let mut matches_count = {
-			let (count_send, count_recv) = sync::mpsc::sync_channel(1);
+			let (count_send, count_recv) = flume::bounded(1);
 			let _count_buffer = filter_pass.count_buffer.clone();
 
 			// read count buffer

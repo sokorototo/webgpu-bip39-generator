@@ -46,7 +46,7 @@ fn verify_filtered_mnemonics() {
 	let (device, queue) = pollster::block_on(device::init());
 
 	// start monitoring thread
-	let (sender, receiver) = std::sync::mpsc::channel::<solver::StageComputation>();
+	let (sender, receiver) = flume::bounded::<solver::StageComputation>(64);
 
 	let thread = std::thread::spawn(move || {
 		// verify identity of entropies
@@ -98,7 +98,7 @@ fn extract_derivations() {
 
 	// init devices
 	let (device, queue) = pollster::block_on(device::init());
-	let (sender, receiver) = std::sync::mpsc::channel::<solver::StageComputation>();
+	let (sender, receiver) = flume::bounded::<solver::StageComputation>(64);
 
 	let thread = std::thread::spawn(move || {
 		let null_hash: [u32; 64] = bytemuck::Zeroable::zeroed();
@@ -167,7 +167,7 @@ fn verify_derived_hashes() {
 	let (device, queue) = pollster::block_on(device::init());
 
 	// start monitoring thread
-	let (sender, receiver) = std::sync::mpsc::channel::<solver::StageComputation>();
+	let (sender, receiver) = flume::bounded::<solver::StageComputation>(64);
 
 	let thread = std::thread::spawn(move || {
 		// verify hash of entropies
