@@ -107,13 +107,19 @@ async fn main() {
 
 		// consume messages
 		loop {
-			// performance tracking
-			let then = std::time::Instant::now();
 			if receiver.len() >= 64 {
 				log::error!(target: "main::monitoring_thread", "Severe Bottleneck from monitoring thread: Queue length = {}", receiver.len())
 			}
 
+			// performance tracking
+			let then = std::time::Instant::now();
+			let mut max_step = 0;
+			let mut total = 0;
+
 			for comp in receiver.drain() {
+				max_step = max_step.max(comp.step);
+				total += comp.outputs.len();
+
 				// process master extended keys
 				for output in comp.outputs.iter() {
 					debug_assert_ne!(output, &null_hash);
@@ -154,11 +160,11 @@ async fn main() {
 						output_file.write_all(line.as_bytes()).unwrap();
 					}
 				}
-
-				// log performance
-				let iteration = (comp.step / solver::STEP as u64) + 1;
-				log::info!(target: "main::monitoring_thread", "[{:03}/{:03}]: {} Addresses processed in {:?}", iteration, range, comp.outputs.len(), then.elapsed());
 			}
+
+			// log performance
+			let progress = (max_step / solver::STEP as u64) + 1;
+			log::info!(target: "main::monitoring_thread", "[{:03}/{:03}]: {} Addresses processed in {:?}", progress, range, total, then.elapsed());
 		}
 	});
 
