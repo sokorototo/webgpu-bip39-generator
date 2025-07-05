@@ -105,6 +105,9 @@ async fn main() {
 		let derivation_path: bitcoin::bip32::DerivationPath = std::str::FromStr::from_str("m/44'/0'/0'/0/0").unwrap();
 		let null_hash: solver::types::DerivationsOutput = bytemuck::Zeroable::zeroed();
 
+		// performance tracking
+		let mut then = std::time::Instant::now();
+
 		// consume messages
 		loop {
 			if receiver.len() >= 64 {
@@ -115,8 +118,6 @@ async fn main() {
 				continue;
 			}
 
-			// performance tracking
-			let then = std::time::Instant::now();
 			let mut max_step = 0;
 			let mut total = 0;
 
@@ -169,6 +170,7 @@ async fn main() {
 			// log performance
 			let progress = (max_step / solver::STEP as u64) + 1;
 			log::info!(target: "main::monitoring_thread", "[{:03}/{:03}]: {} Addresses processed in {:?}", progress, range, total, then.elapsed());
+			then = std::time::Instant::now();
 		}
 	});
 
