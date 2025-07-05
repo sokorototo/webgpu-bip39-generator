@@ -117,7 +117,7 @@ fn extract_derivations() {
 			let len = outputs.len() as u32;
 
 			for (idx, output) in IntoIterator::into_iter(outputs).enumerate() {
-				assert_ne!(output.hash, null_hash);
+				assert_ne!(output.hash, &null_hash);
 
 				let combined = output.hash.map(|s| s as u8);
 				println!("GpuMasterExtendedKey[{}] = \"{}\"", idx, hex::encode(&combined));
