@@ -44,7 +44,7 @@ pub(crate) fn solve(config: &super::Config, device: &wgpu::Device, queue: &wgpu:
 		match then.as_mut() {
 			Some(p) => {
 				let now = time::Instant::now();
-				log::warn!("Compute Passes took: {:?}", p.elapsed());
+				log::info!("GPU Compute Passes took: {:?}", p.elapsed());
 				*p = now;
 			}
 			None => then = Some(time::Instant::now()),
@@ -94,7 +94,7 @@ pub(crate) fn solve(config: &super::Config, device: &wgpu::Device, queue: &wgpu:
 			let dispatch_x = filter::FilterPass::DISPATCH_SIZE_X.min(dispatch);
 			let dispatch_y = (dispatch / filter::FilterPass::DISPATCH_SIZE_Y).max(1);
 
-			log::warn!(target: "solver::filter_stage", "Threads = {}, DispatchX = {}, DispatchY = {}, WorkgroupSize = {}", threads, dispatch_x, dispatch_y, filter::FilterPass::WORKGROUP_SIZE);
+			log::debug!(target: "solver::filter_stage", "Threads = {}, DispatchX = {}, DispatchY = {}, WorkgroupSize = {}", threads, dispatch_x, dispatch_y, filter::FilterPass::WORKGROUP_SIZE);
 			pass.dispatch_workgroups(dispatch_x, dispatch_y, 1);
 		}
 
@@ -127,7 +127,7 @@ pub(crate) fn solve(config: &super::Config, device: &wgpu::Device, queue: &wgpu:
 			device.poll(wgpu::PollType::Wait).unwrap();
 			let count = count_recv.recv_timeout(time::Duration::from_secs(5)).expect("Unable to acquire matches_count from buffer");
 
-			log::info!(target: "solver::filter_stage", "Valid Mnemonic Phrases Found: {}", count);
+			log::debug!(target: "solver::filter_stage", "Valid Mnemonic Phrases Found: {}", count);
 
 			// output buffer was full
 			if count >= MAX_RESULTS_FOUND as _ {
@@ -157,7 +157,7 @@ pub(crate) fn solve(config: &super::Config, device: &wgpu::Device, queue: &wgpu:
 			let mut constants = derivation_pass.constants;
 			let threads_per_iteration = config.threads.unwrap_or(64) * derivation::DerivationPass::WORKGROUP_SIZE;
 
-			log::info!(target: "solver::derivations_stage", "Inputs = {}, Dispatches = {}, WorkgroupSize = {}", matches_count, (matches_count + threads_per_iteration - 1) / threads_per_iteration, derivation::DerivationPass::WORKGROUP_SIZE);
+			log::debug!(target: "solver::derivations_stage", "Inputs = {}, Dispatches = {}, WorkgroupSize = {}", matches_count, (matches_count + threads_per_iteration - 1) / threads_per_iteration, derivation::DerivationPass::WORKGROUP_SIZE);
 
 			loop {
 				constants.offset = processed;

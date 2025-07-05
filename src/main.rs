@@ -67,7 +67,11 @@ pub(crate) fn parse_partition(path: &str) -> Result<(u64, u64), String> {
 
 #[pollster::main]
 async fn main() {
-	simple_logger::init_with_level(log::Level::Info).unwrap();
+	if cfg!(debug_assertions) {
+		simple_logger::init_with_level(log::Level::Debug).unwrap();
+	} else {
+		simple_logger::init_with_level(log::Level::Info).unwrap();
+	}
 
 	// acquire and verify config
 	let config: Config = argh::from_env();
@@ -81,7 +85,7 @@ async fn main() {
 	let (sender, receiver) = flume::unbounded::<solver::StageComputation>();
 
 	let handle = std::thread::spawn(move || {
-		log::info!("Result collection thread has started");
+		log::debug!("Result collection thread has started");
 
 		// track progress
 		let range = 1 + (config.range.1 - config.range.0) / solver::STEP as u64;
@@ -94,7 +98,7 @@ async fn main() {
 		let addresses = read_addresses_file(addresses_path);
 
 		log::info!("Output File = \"{}\", Addresses = \"{}\"", output_path, addresses_path);
-		log::info!("Parsed Addresses Set: Len = {}", addresses.len());
+		log::debug!("Parsed Addresses Set: Len = {}", addresses.len());
 
 		// bitcoin state
 		let secp256k1 = bitcoin::key::Secp256k1::new();
@@ -146,14 +150,14 @@ async fn main() {
 							master_extended_private_key, child_private_key, p2pkh
 						);
 
-						log::info!("Found Matching P2PKH:\n{}", line);
+						log::debug!("Found Matching P2PKH:\n{}", line);
 						output_file.write_all(line.as_bytes()).unwrap();
 					}
 				}
 
 				// log performance
 				let iteration = (comp.step / solver::STEP as u64) + 1;
-				log::warn!(target: "main::monitoring_thread", "[{:03}/{:03}]: {} Addresses processed in {:?}", iteration, range, comp.outputs.len(), then.elapsed());
+				log::info!(target: "main::monitoring_thread", "[{:03}/{:03}]: {} Addresses processed in {:?}", iteration, range, comp.outputs.len(), then.elapsed());
 			}
 		}
 	});

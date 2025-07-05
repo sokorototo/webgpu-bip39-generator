@@ -14,5 +14,5 @@ pub(super) fn verify_config(config: &Config) {
 		panic!("Invalid Stencil Pattern: Expected 4 words, 4 stars and 4 words\n Eg: throw roast bulk opinion * * * * guide female change thought");
 	};
 
-	log::info!("Verified Stencil and Config Range");
+	log::debug!("Verified Stencil and Config Range");
 }
