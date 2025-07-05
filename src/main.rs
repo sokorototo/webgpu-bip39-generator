@@ -97,7 +97,7 @@ async fn main() {
 		let addresses_path = config.addresses.as_deref().unwrap_or("addresses.txt");
 		let addresses = read_addresses_file(addresses_path);
 
-		log::info!("Output File = \"{}\", Addresses = \"{}\"", output_path, addresses_path);
+		log::info!("Output Addresses = \"{}\", Input Addresses = \"{}\"", output_path, addresses_path);
 		log::debug!("Parsed Addresses Set: Len = {}", addresses.len());
 
 		// bitcoin state

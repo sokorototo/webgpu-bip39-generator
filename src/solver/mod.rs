@@ -44,7 +44,7 @@ pub(crate) fn solve(config: &super::Config, device: &wgpu::Device, queue: &wgpu:
 		match then.as_mut() {
 			Some(p) => {
 				let now = time::Instant::now();
-				log::info!("GPU Compute Passes took: {:?}", p.elapsed());
+				log::debug!("GPU Compute Passes took: {:?}", p.elapsed());
 				*p = now;
 			}
 			None => then = Some(time::Instant::now()),
@@ -61,7 +61,7 @@ pub(crate) fn solve(config: &super::Config, device: &wgpu::Device, queue: &wgpu:
 		let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("filter_pass") });
 
 		{
-			log::debug!("Queueing Reset Pass");
+			log::trace!("Queueing Reset Pass");
 
 			// queue: reset pass
 			let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
@@ -75,7 +75,7 @@ pub(crate) fn solve(config: &super::Config, device: &wgpu::Device, queue: &wgpu:
 		}
 
 		{
-			log::debug!("Queueing Filter Pass");
+			log::trace!("Queueing Filter Pass");
 
 			// queue: filter pass
 			let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
