@@ -48,21 +48,19 @@ fn verify_filtered_mnemonics() {
 	let (device, queue) = pollster::block_on(device::init());
 
 	// start monitoring thread
-	let (sender, receiver) = std::sync::mpsc::channel::<solver::SolverUpdate>();
+	let (sender, receiver) = std::sync::mpsc::channel::<solver::StageComputation>();
 
 	let thread = std::thread::spawn(move || {
 		// verify identity of entropies
 		let mut set = std::collections::BTreeSet::new();
 
 		// verifies outputs from solver
-		while let Ok(update) = receiver.recv() {
-			let solver::SolverData::Matches { constants, matches } = update.data else {
-				continue;
-			};
+		while let Ok(comp) = receiver.recv() {
+			let solver::StageComputation { step, constants, outputs } = comp;
 
 			// verify constants
-			for match_ in matches {
-				let entropy = [constants.words[0], constants.words[1], match_, constants.words[3]];
+			for output in outputs {
+				let entropy = [constants.words[0], constants.words[1], output.word2, constants.words[3]];
 				let entropy_be = entropy.map(|e| e.to_be());
 				let bytes: &[u8] = bytemuck::cast_slice(&entropy_be);
 
@@ -85,7 +83,7 @@ fn verify_filtered_mnemonics() {
 		assert!(!set.is_empty(), "Entropies Set was empty");
 	});
 
-	solver::solve::<{ solver::MATCHES_READ_FLAG }>(&config, &device, &queue, sender);
+	solver::solve(&config, &device, &queue, sender);
 	let _ = thread.join().unwrap();
 }
 
@@ -104,56 +102,56 @@ fn extract_derivations() {
 
 	// init devices
 	let (device, queue) = pollster::block_on(device::init());
-	let (sender, receiver) = std::sync::mpsc::channel::<solver::SolverUpdate>();
+	let (sender, receiver) = std::sync::mpsc::channel::<solver::StageComputation>();
 
 	let thread = std::thread::spawn(move || {
-		let null_hash: solver::types::GpuSha512Hash = bytemuck::Zeroable::zeroed();
+		let null_hash: solver::types::DerivationsOutput = bytemuck::Zeroable::zeroed();
 		let derivation_path = bitcoin::bip32::DerivationPath::from_str("m/44'/0'/0'/0/0").unwrap();
 		let secp256k1 = bitcoin::key::Secp256k1::new();
 
 		// verifies outputs from solver
-		while let Ok(update) = receiver.recv() {
-			if let solver::SolverData::Hashes { hashes, .. } = update.data {
-				let then = std::time::Instant::now();
-				let len = hashes.len() as u32;
+		while let Ok(comp) = receiver.recv() {
+			let solver::StageComputation { step, constants, outputs } = comp;
 
-				for (idx, combined) in IntoIterator::into_iter(hashes).enumerate() {
-					assert_ne!(combined, null_hash);
+			let then = std::time::Instant::now();
+			let len = outputs.len() as u32;
 
-					let combined = combined.map(|s| s as u8);
-					println!("GpuMasterExtendedKey[{}] = \"{}\"", idx, hex::encode(&combined));
+			for (idx, output) in IntoIterator::into_iter(outputs).enumerate() {
+				assert_ne!(output.hash, null_hash);
 
-					let mut private_key_bytes = [0; 32];
-					private_key_bytes.copy_from_slice(&combined[..32]);
+				let combined = output.hash.map(|s| s as u8);
+				println!("GpuMasterExtendedKey[{}] = \"{}\"", idx, hex::encode(&combined));
 
-					let mut chain_code_bytes = [0; 32];
-					chain_code_bytes.copy_from_slice(&combined[32..]);
+				let mut private_key_bytes = [0; 32];
+				private_key_bytes.copy_from_slice(&combined[..32]);
 
-					let extended_private_key = bitcoin::bip32::Xpriv {
-						network: bitcoin::NetworkKind::Main,
-						depth: 0,
-						parent_fingerprint: bitcoin::bip32::Fingerprint::from([0; 4]),
-						child_number: bitcoin::bip32::ChildNumber::Hardened { index: 0 },
-						private_key: bitcoin::secp256k1::SecretKey::from_slice(&private_key_bytes).unwrap(),
-						chain_code: bitcoin::bip32::ChainCode::from(chain_code_bytes),
-					};
+				let mut chain_code_bytes = [0; 32];
+				chain_code_bytes.copy_from_slice(&combined[32..]);
 
-					// derive child private key
-					let child_private_key = extended_private_key.derive_priv(&secp256k1, &derivation_path).unwrap();
-					println!("DerivedPrivateKey = \"{}\"", child_private_key);
+				let extended_private_key = bitcoin::bip32::Xpriv {
+					network: bitcoin::NetworkKind::Main,
+					depth: 0,
+					parent_fingerprint: bitcoin::bip32::Fingerprint::from([0; 4]),
+					child_number: bitcoin::bip32::ChildNumber::Hardened { index: 0 },
+					private_key: bitcoin::secp256k1::SecretKey::from_slice(&private_key_bytes).unwrap(),
+					chain_code: bitcoin::bip32::ChainCode::from(chain_code_bytes),
+				};
 
-					// derive public key hash
-					let public_key = bitcoin::PublicKey::from_private_key(&secp256k1, &child_private_key.to_priv());
-					let p2pkh = bitcoin::Address::p2pkh(&public_key, bitcoin::Network::Bitcoin);
-					println!("Pay2PublicKeyHash = \"{}\"\n", p2pkh);
-				}
+				// derive child private key
+				let child_private_key = extended_private_key.derive_priv(&secp256k1, &derivation_path).unwrap();
+				println!("DerivedPrivateKey = \"{}\"", child_private_key);
 
-				println!("KeyDerivation took: {:?}", then.elapsed() / len);
+				// derive public key hash
+				let public_key = bitcoin::PublicKey::from_private_key(&secp256k1, &child_private_key.to_priv());
+				let p2pkh = bitcoin::Address::p2pkh(&public_key, bitcoin::Network::Bitcoin);
+				println!("Pay2PublicKeyHash = \"{}\"\n", p2pkh);
 			}
+
+			println!("KeyDerivation took: {:?}", then.elapsed() / len);
 		}
 	});
 
-	solver::solve::<{ solver::HASHES_READ_FLAG }>(&config, &device, &queue, sender);
+	solver::solve(&config, &device, &queue, sender);
 	let _ = thread.join().unwrap();
 }
 
@@ -174,58 +172,48 @@ fn verify_derived_hashes() {
 	let (device, queue) = pollster::block_on(device::init());
 
 	// start monitoring thread
-	let (sender, receiver) = std::sync::mpsc::channel::<solver::SolverUpdate>();
+	let (sender, receiver) = std::sync::mpsc::channel::<solver::StageComputation>();
 
 	let thread = std::thread::spawn(move || {
 		// verify hash of entropies
-		let mut map = std::collections::BTreeMap::new();
 		let mut processed = 0;
-
-		let null_hash: solver::types::GpuSha512Hash = bytemuck::Zeroable::zeroed();
+		let null_hash: solver::types::DerivationsOutput = bytemuck::Zeroable::zeroed();
 
 		// verifies outputs from solver
-		while let Ok(update) = receiver.recv() {
-			match update.data {
-				solver::SolverData::Matches { matches, constants } => {
-					map.insert(update.step, (constants, matches));
-				}
-				solver::SolverData::Hashes { hashes, .. } => {
-					let (constants, matches) = map.remove(&update.step).unwrap();
-					assert_eq!(matches.len(), hashes.len(), "Derivation Stage produced an incorrect number of matches");
+		while let Ok(comp) = receiver.recv() {
+			let solver::StageComputation { step, constants, outputs } = comp;
 
-					for (idx, (hash, match_)) in hashes.iter().zip(matches.iter()).enumerate() {
-						assert_ne!(hash, &null_hash);
-						let gpu_master_extended_key = hash.map(|s| s as u8);
+			for (idx, output) in outputs.iter().enumerate() {
+				assert_ne!(output.hash, &null_hash);
+				let gpu_master_extended_key = output.hash.map(|s| s as u8);
 
-						// verify hmac
-						let entropy = [constants.words[0], constants.words[1], *match_, constants.words[3]];
-						let entropy = entropy.map(|e| e.to_be()); // reverse endianness from insertion
-						let mnemonic = bip39::Mnemonic::from_entropy_in(bip39::Language::English, bytemuck::cast_slice(&entropy)).unwrap();
+				// verify hmac
+				let entropy = [constants.words[0], constants.words[1], output.word2, constants.words[3]];
+				let entropy = entropy.map(|e| e.to_be()); // reverse endianness from insertion
+				let mnemonic = bip39::Mnemonic::from_entropy_in(bip39::Language::English, bytemuck::cast_slice(&entropy)).unwrap();
 
-						let first = mnemonic.words().next().unwrap().to_string();
-						let sequence = mnemonic.words().skip(1).fold(first, |acc, nxt| acc + " " + nxt);
+				let first = mnemonic.words().next().unwrap().to_string();
+				let sequence = mnemonic.words().skip(1).fold(first, |acc, nxt| acc + " " + nxt);
 
-						let seed = pbkdf2(sequence.as_bytes());
-						let cpu_master_extended_key = hmac_sha512(&seed, b"Bitcoin seed");
+				let seed = pbkdf2(sequence.as_bytes());
+				let cpu_master_extended_key = hmac_sha512(&seed, b"Bitcoin seed");
 
-						// debug points
-						println!("Sequence[{}] = \"{}\"", idx, sequence);
-						println!("CpuBip39Seed = {}", hex::encode(&seed));
-						println!("CpuMasterExtendedKey = {}", hex::encode(&cpu_master_extended_key));
-						println!("GpuMasterExtendedKey = {}\n", hex::encode(&gpu_master_extended_key));
+				// debug points
+				println!("Sequence[{}] = \"{}\"", idx, sequence);
+				println!("CpuBip39Seed = {}", hex::encode(&seed));
+				println!("CpuMasterExtendedKey = {}", hex::encode(&cpu_master_extended_key));
+				println!("GpuMasterExtendedKey = {}\n", hex::encode(&gpu_master_extended_key));
 
-						assert_eq!(gpu_master_extended_key, cpu_master_extended_key);
-					}
+				assert_eq!(gpu_master_extended_key, cpu_master_extended_key);
+			}
 
-					processed += 1;
-				}
-			};
+			processed += 1;
 		}
 
 		assert!(processed > 0, "No Hashes Were Processed");
 	});
 
-	solver::solve::<{ solver::MATCHES_READ_FLAG | solver::HASHES_READ_FLAG }>(&config, &device, &queue, sender);
+	solver::solve(&config, &device, &queue, sender);
 	let _ = thread.join().unwrap();
 }
 

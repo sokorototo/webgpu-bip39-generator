@@ -78,7 +78,7 @@ async fn main() {
 
 	// start monitoring thread
 	let config_ = config.clone();
-	let (sender, receiver) = std::sync::mpsc::channel::<solver::SolverUpdate>();
+	let (sender, receiver) = std::sync::mpsc::channel::<solver::StageComputation>();
 
 	let handle = std::thread::spawn(move || {
 		log::info!("Result collection thread has started");
@@ -99,23 +99,20 @@ async fn main() {
 		// bitcoin state
 		let secp256k1 = bitcoin::key::Secp256k1::new();
 		let derivation_path: bitcoin::bip32::DerivationPath = std::str::FromStr::from_str("m/44'/0'/0'/0/0").unwrap();
-		let null_hash: solver::types::GpuSha512Hash = bytemuck::Zeroable::zeroed();
+		let null_hash: solver::types::DerivationsOutput = bytemuck::Zeroable::zeroed();
 
 		// consume messages
-		while let Ok(update) = receiver.recv() {
-			let solver::SolverData::Hashes { hashes, .. } = update.data else {
-				continue;
-			};
-
+		while let Ok(comp) = receiver.recv() {
 			// performance tracking
 			let then = std::time::Instant::now();
 
 			// process master extended keys
-			for combined in hashes.iter() {
-				debug_assert_ne!(*combined, null_hash);
+			for output in comp.outputs.iter() {
+				debug_assert_ne!(*output, null_hash);
+				continue;
 
 				// TODO: Partially move derivations to GPU
-				let combined = combined.map(|s| s as u8);
+				let combined = output.hash.map(|s| s as u8);
 
 				let mut chain_code_bytes = [0; 32];
 				chain_code_bytes.copy_from_slice(&combined[32..]);
@@ -151,12 +148,12 @@ async fn main() {
 			}
 
 			// log performance
-			let iteration = (update.step / solver::STEP as u64) + 1;
-			log::warn!(target: "main::monitoring_thread", "[{:03}/{:03}]: {} Addresses processed in {:?}", iteration, range, hashes.len(), then.elapsed());
+			let iteration = (comp.step / solver::STEP as u64) + 1;
+			log::warn!(target: "main::monitoring_thread", "[{:03}/{:03}]: {} Addresses processed in {:?}", iteration, range, comp.outputs.len(), then.elapsed());
 		}
 	});
 
 	// solve
-	solver::solve::<{ solver::HASHES_READ_FLAG }>(&config_, &device, &queue, sender);
+	solver::solve(&config_, &device, &queue, sender);
 	handle.join().expect("Monitoring thread experienced an error");
 }

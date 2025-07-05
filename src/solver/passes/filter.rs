@@ -56,8 +56,8 @@ impl FilterPass {
 
 		let matches_buffer = device.create_buffer(&wgpu::BufferDescriptor {
 			label: Some("solver_matches"),
-			size: (std::mem::size_of::<[types::Word2; MAX_RESULTS_FOUND]>() as usize) as wgpu::BufferAddress,
-			usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
+			size: (std::mem::size_of::<[types::Word; MAX_RESULTS_FOUND]>() as usize) as wgpu::BufferAddress,
+			usage: wgpu::BufferUsages::STORAGE,
 			mapped_at_creation: false,
 		});
 

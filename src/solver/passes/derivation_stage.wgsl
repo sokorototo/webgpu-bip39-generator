@@ -92,8 +92,13 @@ fn indices_to_word(indices: array<u32, 12>, dest: ptr<function, array<u32, MNEMO
     return cursor;
 }
 
+struct Output {
+    word2: u32,
+    hash: array<u32, SHA512_HASH_LENGTH>
+}
+
 @group(0) @binding(3)
-var<storage, read_write> output: array<array<u32, SHA512_HASH_LENGTH>, MAX_RESULTS_FOUND>;
+var<storage, read_write> outputs: array<Output, MAX_RESULTS_FOUND>;
 
 // extract big endian bytes from an index
 fn extract_bytes_be(input: u32) -> array<u32, 4> {
@@ -138,9 +143,9 @@ fn main(@builtin(global_invocation_id) global: vec3<u32>) {
     }
 
     // generate indices for mnemonics words from entropy
-    let word_2 = matches[global.x + constants.offset];
+    let word2 = matches[global.x + constants.offset];
 
-    var entropy = array<u32, ENTROPIES>(constants.word0, constants.word1, word_2, constants.word3);
+    var entropy = array<u32, ENTROPIES>(constants.word0, constants.word1, word2, constants.word3);
     var indices = entropy_to_indices(entropy);
 
     // extract word
@@ -180,6 +185,6 @@ fn main(@builtin(global_invocation_id) global: vec3<u32>) {
     hmac_sha512(&seed_128, SHA512_HASH_LENGTH, &key_128, &master_extended_key);
 
     // derivation path = m/44'/0'/0'/0/0
-    output[global.x + constants.offset] = master_extended_key;
+    outputs[global.x + constants.offset] = Output(word2, master_extended_key);
     // TODO: continue with derivation path
 }
