@@ -60,7 +60,7 @@ fn verify_filtered_mnemonics() {
 
 			// verify constants
 			for output in outputs {
-				let entropy = [constants.words[0], constants.words[1], output.word2, constants.words[3]];
+				let entropy = [constants.word0, constants.word1, output.word2, constants.word3];
 				let entropy_be = entropy.map(|e| e.to_be());
 				let bytes: &[u8] = bytemuck::cast_slice(&entropy_be);
 
@@ -177,7 +177,7 @@ fn verify_derived_hashes() {
 	let thread = std::thread::spawn(move || {
 		// verify hash of entropies
 		let mut processed = 0;
-		let null_hash: solver::types::DerivationsOutput = bytemuck::Zeroable::zeroed();
+		let null_hash: [u32; 64] = bytemuck::Zeroable::zeroed();
 
 		// verifies outputs from solver
 		while let Ok(comp) = receiver.recv() {
@@ -188,7 +188,7 @@ fn verify_derived_hashes() {
 				let gpu_master_extended_key = output.hash.map(|s| s as u8);
 
 				// verify hmac
-				let entropy = [constants.words[0], constants.words[1], output.word2, constants.words[3]];
+				let entropy = [constants.word0, constants.word1, output.word2, constants.word3];
 				let entropy = entropy.map(|e| e.to_be()); // reverse endianness from insertion
 				let mnemonic = bip39::Mnemonic::from_entropy_in(bip39::Language::English, bytemuck::cast_slice(&entropy)).unwrap();
 

@@ -55,7 +55,7 @@ pub(crate) fn solve(config: &super::Config, device: &wgpu::Device, queue: &wgpu:
 		let word1 = (filter_pass.constants.words[1] & 0xfff00000) | entropy;
 
 		filter_pass.constants.words[1] = word1;
-		derivation_pass.constants.words[1] = word1;
+		derivation_pass.constants.word1 = word1;
 
 		// 1: queue reset and filter pass
 		let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("filter_pass") });
