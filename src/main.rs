@@ -134,7 +134,6 @@ async fn main() {
 				// process master extended keys
 				for output in comp.outputs.iter() {
 					debug_assert_ne!(output, &null_hash);
-					continue;
 
 					// TODO: Partially move derivations to GPU
 					let combined = output.hash.map(|s| s as u8);
