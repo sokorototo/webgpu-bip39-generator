@@ -105,7 +105,7 @@ fn extract_derivations() {
 	let (sender, receiver) = std::sync::mpsc::channel::<solver::StageComputation>();
 
 	let thread = std::thread::spawn(move || {
-		let null_hash: solver::types::DerivationsOutput = bytemuck::Zeroable::zeroed();
+		let null_hash: [u32; 64] = bytemuck::Zeroable::zeroed();
 		let derivation_path = bitcoin::bip32::DerivationPath::from_str("m/44'/0'/0'/0/0").unwrap();
 		let secp256k1 = bitcoin::key::Secp256k1::new();
 
@@ -117,7 +117,7 @@ fn extract_derivations() {
 			let len = outputs.len() as u32;
 
 			for (idx, output) in IntoIterator::into_iter(outputs).enumerate() {
-				assert_ne!(output.hash, &null_hash);
+				assert_ne!(output.hash, null_hash);
 
 				let combined = output.hash.map(|s| s as u8);
 				println!("GpuMasterExtendedKey[{}] = \"{}\"", idx, hex::encode(&combined));
@@ -184,7 +184,7 @@ fn verify_derived_hashes() {
 			let solver::StageComputation { step, constants, outputs } = comp;
 
 			for (idx, output) in outputs.iter().enumerate() {
-				assert_ne!(output.hash, &null_hash);
+				assert_ne!(output.hash, null_hash);
 				let gpu_master_extended_key = output.hash.map(|s| s as u8);
 
 				// verify hmac
