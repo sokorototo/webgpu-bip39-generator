@@ -54,7 +54,7 @@ fn verify_filtered_mnemonics() {
 
 		// verifies outputs from solver
 		while let Ok(comp) = receiver.recv() {
-			let solver::StageComputation { step, constants, outputs } = comp;
+			let solver::StageComputation { constants, outputs, .. } = comp;
 
 			// verify constants
 			for output in outputs {
@@ -107,7 +107,7 @@ fn extract_derivations() {
 
 		// verifies outputs from solver
 		while let Ok(comp) = receiver.recv() {
-			let solver::StageComputation { step, constants, outputs } = comp;
+			let solver::StageComputation { outputs, .. } = comp;
 
 			let then = std::time::Instant::now();
 			let len = outputs.len() as u32;
@@ -176,7 +176,7 @@ fn verify_derived_hashes() {
 
 		// verifies outputs from solver
 		while let Ok(comp) = receiver.recv() {
-			let solver::StageComputation { step, constants, outputs } = comp;
+			let solver::StageComputation { constants, outputs, .. } = comp;
 
 			for (idx, output) in outputs.iter().enumerate() {
 				assert_ne!(output.hash, null_hash);
