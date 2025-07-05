@@ -72,7 +72,7 @@ async fn main() {
 			.with_module_level("wgpu_hal", log::LevelFilter::Warn)
 			.with_module_level("wgpu_core", log::LevelFilter::Warn)
 			.with_module_level("naga", log::LevelFilter::Error)
-			.env()
+			.with_level(log::LevelFilter::Debug)
 			.init()
 			.unwrap();
 	} else {
