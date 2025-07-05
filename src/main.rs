@@ -111,6 +111,10 @@ async fn main() {
 				log::error!(target: "main::monitoring_thread", "Severe Bottleneck from monitoring thread: Queue length = {}", receiver.len())
 			}
 
+			if receiver.len() == 0 {
+				continue;
+			}
+
 			// performance tracking
 			let then = std::time::Instant::now();
 			let mut max_step = 0;
