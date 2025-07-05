@@ -10,7 +10,7 @@ pub(self) mod utils;
 #[cfg(test)]
 pub(crate) mod tests;
 
-#[derive(argh::FromArgs, Clone, Default)]
+#[derive(argh::FromArgs, Clone, Default, Debug)]
 /// Generates the remaining words in a BTC seed phrase by brute-force. Uses the WebGPU API
 pub(crate) struct Config {
 	/// string describing known and unknown words in the mnemonic sentence. Must be 12 words long
@@ -68,7 +68,7 @@ pub(crate) fn parse_partition(path: &str) -> Result<(u64, u64), String> {
 #[pollster::main]
 async fn main() {
 	if cfg!(debug_assertions) {
-		simple_logger::init_with_level(log::Level::Debug).unwrap();
+		simple_logger::init_with_env().unwrap();
 	} else {
 		simple_logger::init_with_level(log::Level::Info).unwrap();
 	}
@@ -89,6 +89,7 @@ async fn main() {
 
 		// track progress
 		let steps = 1 + (config.range.1 - config.range.0) / solver::STEP as u64;
+		dbg!(steps, &config);
 
 		// input and output files
 		let output_path = config.found.as_deref().unwrap_or("found.txt");
