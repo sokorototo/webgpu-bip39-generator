@@ -155,7 +155,7 @@ pub(crate) fn solve(config: &super::Config, device: &wgpu::Device, queue: &wgpu:
 			// call derivations pass in smaller dispatches to avoid GPU timeouts
 			let mut processed = 0u32;
 			let mut constants = derivation_pass.constants;
-			let threads_per_iteration = config.threads * derivation::DerivationPass::WORKGROUP_SIZE;
+			let threads_per_iteration = config.threads.unwrap_or(64) * derivation::DerivationPass::WORKGROUP_SIZE;
 
 			log::info!(target: "solver::derivations_stage", "Inputs = {}, Dispatches = {}, WorkgroupSize = {}", matches_count, (matches_count + threads_per_iteration - 1) / threads_per_iteration, derivation::DerivationPass::WORKGROUP_SIZE);
 

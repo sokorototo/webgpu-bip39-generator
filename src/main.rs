@@ -10,7 +10,7 @@ pub(self) mod utils;
 #[cfg(test)]
 pub(crate) mod tests;
 
-#[derive(argh::FromArgs, Clone)]
+#[derive(argh::FromArgs, Clone, Default)]
 /// Generates the remaining words in a BTC seed phrase by brute-force. Uses the WebGPU API
 pub(crate) struct Config {
 	/// string describing known and unknown words in the mnemonic sentence. Must be 12 words long
@@ -26,9 +26,9 @@ pub(crate) struct Config {
 	#[argh(option, short = 'f')]
 	found: Option<String>,
 	/// how many threads to process per iteration in the derivation stage.
-	/// multiplied by 256 to arrive at final value
-	#[argh(option, default = "64", short = 't')]
-	threads: u32,
+	/// multiplied by 256 to arrive at final value. Default is 64
+	#[argh(option, short = 't')]
+	threads: Option<u32>,
 }
 
 pub(crate) fn read_addresses_file(path: &str) -> gxhash::HashSet<solver::types::PublicKeyHash> {

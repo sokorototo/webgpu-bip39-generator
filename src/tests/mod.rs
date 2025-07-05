@@ -39,9 +39,7 @@ fn verify_filtered_mnemonics() {
 	let config = Config {
 		stencil: stencil.map(|s| s.to_string()).into_iter().collect(),
 		range: (0, 2048),
-		addresses: None,
-		found: None,
-		threads: 0,
+		..Default::default()
 	};
 
 	// init devices
@@ -95,9 +93,7 @@ fn extract_derivations() {
 			.into_iter()
 			.collect(),
 		range: (0, 2048),
-		addresses: None,
-		found: None,
-		threads: 0,
+		..Default::default()
 	};
 
 	// init devices
@@ -163,9 +159,7 @@ fn verify_derived_hashes() {
 			.into_iter()
 			.collect(),
 		range: (0, 2048),
-		addresses: None,
-		found: None,
-		threads: 0,
+		..Default::default()
 	};
 
 	// init devices
