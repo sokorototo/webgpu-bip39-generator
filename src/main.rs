@@ -109,7 +109,7 @@ async fn main() {
 		// bitcoin state
 		let secp256k1 = bitcoin::key::Secp256k1::new();
 		let derivation_path: bitcoin::bip32::DerivationPath = std::str::FromStr::from_str("m/44'/0'/0'/0/0").unwrap();
-		let null_hash: solver::types::DerivationsOutput = bytemuck::Zeroable::zeroed();
+		let null_hash: [u32; 64] = bytemuck::Zeroable::zeroed();
 
 		// performance tracking
 		let mut then = std::time::Instant::now();
@@ -127,13 +127,13 @@ async fn main() {
 			let mut max_step = 0;
 			let mut total = 0;
 
-			for comp in receiver.drain() {
-				max_step = max_step.max(comp.step);
-				total += comp.outputs.len();
+			for solver::StageComputation { step, constants, outputs } in receiver.drain() {
+				max_step = max_step.max(step);
+				total += outputs.len();
 
 				// process master extended keys
-				for output in comp.outputs.iter() {
-					debug_assert_ne!(output, &null_hash);
+				for output in outputs {
+					debug_assert_ne!(output.hash, null_hash);
 
 					// TODO: Partially move derivations to GPU
 					let combined = output.hash.map(|s| s as u8);
@@ -159,14 +159,19 @@ async fn main() {
 
 					let bytes: &[u8; 20] = public_key_hash.as_ref();
 					if addresses.contains(bytes) {
+						// assemble mnemonic sequence
+						let entropy = [constants.word0, constants.word1, output.word2, constants.word3];
+						let entropy_be = entropy.map(|e| e.to_be());
+						let mnemonic = bip39::Mnemonic::from_entropy(bytemuck::cast_slice(&entropy_be)).unwrap();
+
+						let first = mnemonic.words().next().unwrap();
+						let sequence = mnemonic.words().skip(1).fold(first.to_string(), |acc, nxt| acc + " " + nxt);
+
 						// write to output file
 						let p2pkh = bitcoin::Address::p2pkh(&public_key, bitcoin::Network::Bitcoin);
-						let line = format!(
-							"MasterExtendedKey = \"{}\", DerivedPrivateKey = \"{}\", P2PKH = \"{}\"\n",
-							master_extended_private_key, child_private_key, p2pkh
-						);
+						let line = format!("Mnemonic = \"{}\", MasterExtendedKey = \"{}\",  P2PKH = \"{}\"\n", sequence, master_extended_private_key, p2pkh);
 
-						log::debug!("Found Matching P2PKH:\n{}", line);
+						log::warn!("Found Match: {}", line);
 						output_file.write_all(line.as_bytes()).unwrap();
 					}
 				}
