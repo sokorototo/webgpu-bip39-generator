@@ -88,7 +88,7 @@ async fn main() {
 		log::debug!("Result collection thread has started");
 
 		// track progress
-		let range = 1 + (config.range.1 - config.range.0) / solver::STEP as u64;
+		let steps = 1 + (config.range.1 - config.range.0) / solver::STEP as u64;
 
 		// input and output files
 		let output_path = config.found.as_deref().unwrap_or("found.txt");
@@ -169,7 +169,7 @@ async fn main() {
 
 			// log performance
 			let progress = (max_step / solver::STEP as u64) + 1;
-			log::info!(target: "main::monitoring_thread", "[{:03}/{:03}]: {} Addresses processed in {:?}", progress, range, total, then.elapsed());
+			log::info!(target: "main::monitoring_thread", "[{:03}/{:03}]: {} Addresses processed in {:?}", progress, steps, total, then.elapsed());
 			then = std::time::Instant::now();
 		}
 	});
