@@ -70,17 +70,17 @@ pub(crate) fn parse_partition(path: &str) -> Result<(u64, u64), String> {
 
 #[pollster::main]
 async fn main() {
-	// if cfg!(debug_assertions) {
-	simple_logger::SimpleLogger::new()
-		.with_module_level("wgpu_hal", log::LevelFilter::Warn)
-		.with_module_level("wgpu_core", log::LevelFilter::Warn)
-		.with_module_level("naga", log::LevelFilter::Error)
-		.with_level(log::LevelFilter::Debug)
-		.init()
-		.unwrap();
-	// } else {
-	// 	simple_logger::init_with_level(log::Level::Info).unwrap();
-	// }
+	if cfg!(debug_assertions) {
+		simple_logger::SimpleLogger::new()
+			.with_module_level("wgpu_hal", log::LevelFilter::Warn)
+			.with_module_level("wgpu_core", log::LevelFilter::Warn)
+			.with_module_level("naga", log::LevelFilter::Error)
+			.with_level(log::LevelFilter::Debug)
+			.init()
+			.unwrap();
+	} else {
+		simple_logger::init_with_level(log::Level::Info).unwrap();
+	}
 
 	// acquire and verify config
 	let config: Config = argh::from_env();
