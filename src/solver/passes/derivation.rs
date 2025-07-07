@@ -20,7 +20,7 @@ pub(crate) struct DerivationPass {
 }
 
 impl DerivationPass {
-	pub(crate) const WORKGROUP_SIZE: u32 = 32;
+	pub(crate) const WORKGROUP_SIZE: u32 = 256;
 
 	pub(crate) fn new(device: &wgpu::Device, filter_pass: &filter::FilterPass) -> DerivationPass {
 		assert!(
