@@ -152,21 +152,21 @@ fn main(@builtin(global_invocation_id) global: vec3<u32>) {
     var word_bytes = array<u32, MNEMONIC_MAX_BYTES>();
     var length = indices_to_word(indices, &word_bytes);
 
-    // // b"mnemonic"
+    // b"mnemonic"
     var mnemonic = array<u32, 8>(109, 110, 101, 109, 111, 110, 105, 99);
     let mnemonic_len = 8u;
 
-    // // TODO: consolidate usage of _128 scratch buffers? monomorphised functions, buffer re-use
+    // TODO: consolidate usage of _128 scratch buffers? monomorphised functions, buffer re-use
     var mnemonic_128 = array<u32, SHA512_MAX_INPUT_SIZE>();
     for (var i = 0u; i < mnemonic_len; i++) {
         mnemonic_128[i] = mnemonic[i];
     }
 
-    // // derive mnemonic seed
+    // derive mnemonic seed
     var seed: array<u32, SHA512_HASH_LENGTH>;
     pbkdf2(&word_bytes, length, &mnemonic_128, mnemonic_len, 2048, &seed);
 
-    // var seed_128 = array<u32, SHA512_MAX_INPUT_SIZE>();
+    var seed_128 = array<u32, SHA512_MAX_INPUT_SIZE>();
     for (var i = 0u; i < SHA512_HASH_LENGTH; i++) {
         seed_128[i] = seed[i];
     }
