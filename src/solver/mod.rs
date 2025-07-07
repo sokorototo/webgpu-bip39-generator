@@ -155,7 +155,7 @@ pub(crate) fn solve(config: &super::Config, device: &wgpu::Device, queue: &wgpu:
 
 			loop {
 				let processed = (matches_count - constants.offset).min(threads);
-				log::debug!(target: "solver::derivations_stage", "Remaining = {}, Processed = {}", matches_count - constants.offset, processed);
+				log::debug!(target: "solver::derivations_stage", "Remaining = {}, Offset = {}", matches_count - constants.offset, constants.offset);
 
 				// sub-queue
 				pass.set_push_constants(0, bytemuck::cast_slice(&[constants]));
