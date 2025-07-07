@@ -143,8 +143,10 @@ async fn main() {
 
 				// process master extended keys
 				for (idx, output) in IntoIterator::into_iter(outputs).enumerate() {
-					debug_assert_ne!(output.hash, null_hash, "Step: {}, Thread: {} returned a null result", step, idx);
-					continue;
+					if output.hash == null_hash {
+						log::error!("Step: {}, Thread: {} returned a null result", step, idx);
+						continue;
+					}
 
 					// TODO: Partially move derivations to GPU
 					let combined = output.hash.map(|s| s as u8);

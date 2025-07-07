@@ -146,24 +146,24 @@ pub(crate) fn solve(config: &super::Config, device: &wgpu::Device, queue: &wgpu:
 			pass.set_bind_group(0, &derivation_pass.bind_group, &[]);
 
 			// call derivations pass in smaller dispatches to avoid GPU timeouts
-			let mut constants = derivation_pass.constants;
-			constants.count = matches_count;
+			let mut varying = derivation_pass.constants;
+			varying.count = matches_count;
 
 			let dispatch = config.dispatch.unwrap_or(128);
 			let threads = dispatch * derivation::DerivationPass::WORKGROUP_SIZE;
 			log::debug!(target: "solver::derivations_stage", "InputMatches = {}: Dispatches = {} * WorkgroupSize = {} => Threads = {}", matches_count, dispatch, derivation::DerivationPass::WORKGROUP_SIZE, threads);
 
 			loop {
-				let processed = (matches_count - constants.offset).min(threads);
-				log::debug!(target: "solver::derivations_stage", "Remaining = {}, Offset = {}", matches_count - constants.offset, constants.offset);
+				let processed = (matches_count - varying.offset).min(threads);
+				log::debug!(target: "solver::derivations_stage", "Remaining = {}, Offset = {}", matches_count - varying.offset, varying.offset);
 
 				// sub-queue
-				pass.set_push_constants(0, bytemuck::cast_slice(&[constants]));
+				pass.set_push_constants(0, bytemuck::cast_slice(&[varying]));
 				pass.dispatch_workgroups(dispatch, 1, 1);
 
 				// are we done?
-				constants.offset = constants.offset.saturating_add(processed);
-				if constants.offset >= matches_count {
+				varying.offset = varying.offset.saturating_add(processed);
+				if varying.offset >= matches_count {
 					break;
 				}
 			}
