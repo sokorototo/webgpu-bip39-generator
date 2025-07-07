@@ -21,14 +21,6 @@ pub(crate) struct StageComputation {
 
 #[allow(unused)]
 pub(crate) fn solve(config: &super::Config, device: &wgpu::Device, queue: &wgpu::Queue, sender: flume::Sender<StageComputation>) {
-	// initialize destination buffers
-	let hashes_dest = device.create_buffer(&wgpu::BufferDescriptor {
-		label: Some("solver_hashes_destination"),
-		size: (mem::size_of::<[types::DerivationsOutput; MAX_RESULTS_FOUND]>()) as wgpu::BufferAddress,
-		usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
-		mapped_at_creation: false,
-	});
-
 	// initialize passes
 	let mut filter_pass = filter::FilterPass::new(device, config.stencil.iter().map(|s| s.as_str()));
 	let reset_pass = reset::ResetPass::new(device, &filter_pass);
@@ -177,28 +169,19 @@ pub(crate) fn solve(config: &super::Config, device: &wgpu::Device, queue: &wgpu:
 			}
 		}
 
-		// queue: copy results from derivation pass to staging buffer
-		encoder.copy_buffer_to_buffer(
-			&derivation_pass.output_buffer,
-			0,
-			&hashes_dest,
-			0,
-			(mem::size_of::<[types::DerivationsOutput; MAX_RESULTS_FOUND]>()) as wgpu::BufferAddress,
-		);
-
 		// submit
 		queue.submit([encoder.finish()]);
 		device.poll(wgpu::PollType::Wait).unwrap();
 
 		{
 			// 4: send copies of compute work over sender
-			let hashes_dest_ = hashes_dest.clone();
+			let hashes_src_ = derivation_pass.output_buffer.clone();
 			let sender_ = sender.clone();
 
-			hashes_dest.map_async(wgpu::MapMode::Read, .., move |res| {
+			derivation_pass.output_buffer.map_async(wgpu::MapMode::Read, .., move |res| {
 				res.unwrap();
 
-				let mut range = hashes_dest_.get_mapped_range(..);
+				let mut range = hashes_src_.get_mapped_range(..);
 				let results: &[types::DerivationsOutput] = bytemuck::cast_slice(range.as_ref());
 
 				let output = StageComputation {
@@ -211,7 +194,7 @@ pub(crate) fn solve(config: &super::Config, device: &wgpu::Device, queue: &wgpu:
 				sender_.send(output).expect("Unable to send results through channel");
 
 				drop(range);
-				hashes_dest_.unmap();
+				hashes_src_.unmap();
 			});
 
 			// poll map_async callback
