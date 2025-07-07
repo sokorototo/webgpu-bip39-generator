@@ -140,8 +140,8 @@ async fn main() {
 				total += outputs.len();
 
 				// process master extended keys
-				for output in outputs {
-					debug_assert_ne!(output.hash, null_hash);
+				for (idx, output) in IntoIterator::into_iter(outputs).enumerate() {
+					debug_assert_ne!(output.hash, null_hash, "Step: {}, Thread: {} returned a null result", step, idx);
 					continue;
 
 					// TODO: Partially move derivations to GPU
