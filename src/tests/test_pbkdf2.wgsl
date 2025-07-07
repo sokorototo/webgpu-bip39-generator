@@ -25,7 +25,13 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
     }
 
     // poop output
+    var temp: array<u32, SHA512_MAX_INPUT_SIZE>;
+    pbkdf2(&data, input.len, &salt, 8, 2048, &temp);
+
     var out: array<u32, SHA512_HASH_LENGTH>;
-    pbkdf2(&data, input.len, &salt, 8, 2048, &out);
+    for (var i = 0; i < SHA512_HASH_LENGTH; i++) {
+        out[i] = temp[i];
+    }
+
     output[id.x] = out;
 }

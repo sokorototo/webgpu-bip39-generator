@@ -56,7 +56,7 @@ fn hmac_sha512(
 fn pbkdf2(
     passwd: ptr<function, array<u32, SHA512_MAX_INPUT_SIZE>>, passlen: u32,
     salt: ptr<function, array<u32, SHA512_MAX_INPUT_SIZE>>, saltlen: u32,
-    iter: u32, out: ptr<function, array<u32, SHA512_HASH_LENGTH>>
+    iter: u32, out: ptr<function, array<u32, SHA512_MAX_INPUT_SIZE>>
 ) {
     // TODO: avoid using ptr<function> storage, use ptr<storage> buffer and index directly in functions
 
@@ -105,7 +105,5 @@ fn pbkdf2(
     }
 
     // write final hash to output
-    for (var i = 0u; i < SHA512_HASH_LENGTH; i++) {
-        out[i] = F[i];
-    };
+    *out = F;
 }

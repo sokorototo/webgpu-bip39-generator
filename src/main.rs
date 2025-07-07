@@ -187,7 +187,7 @@ async fn main() {
 						let p2pkh = bitcoin::Address::p2pkh(&public_key, bitcoin::Network::Bitcoin);
 						let line = format!("Mnemonic = \"{}\", MasterExtendedKey = \"{}\",  P2PKH = \"{}\"\n", sequence, master_extended_private_key, p2pkh);
 
-						log::warn!("Found Match: {}", line);
+						log::warn!("Found Match: {}", &line[..line.len() - 2]);
 						output_file.write_all(line.as_bytes()).unwrap();
 					}
 				}

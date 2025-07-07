@@ -153,36 +153,19 @@ fn main(@builtin(global_invocation_id) global: vec3<u32>) {
     var length = indices_to_word(indices, &word_bytes);
 
     // b"mnemonic"
-    var mnemonic = array<u32, 8>(109, 110, 101, 109, 111, 110, 105, 99);
+    var mnemonic = array<u32, 128>(109, 110, 101, 109, 111, 110, 105, 99, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     let mnemonic_len = 8u;
 
-    // TODO: consolidate usage of _128 scratch buffers? monomorphised functions, buffer re-use
-    var mnemonic_128 = array<u32, SHA512_MAX_INPUT_SIZE>();
-    for (var i = 0u; i < mnemonic_len; i++) {
-        mnemonic_128[i] = mnemonic[i];
-    }
-
     // derive mnemonic seed
-    var seed: array<u32, SHA512_HASH_LENGTH>;
-    pbkdf2(&word_bytes, length, &mnemonic_128, mnemonic_len, 2048, &seed);
-
-    var seed_128 = array<u32, SHA512_MAX_INPUT_SIZE>();
-    for (var i = 0u; i < SHA512_HASH_LENGTH; i++) {
-        seed_128[i] = seed[i];
-    }
+    var seed: array<u32, SHA512_MAX_INPUT_SIZE>;
+    pbkdf2(&word_bytes, length, &mnemonic, mnemonic_len, 2048, &seed);
 
     // derive master extended key
-    var key = array<u32, 12>(66, 105, 116, 99, 111, 105, 110, 32, 115, 101, 101, 100);
+    // b"Bitcoin seed" padded with 116 zeroes
+    var key = array<u32, 128>(66, 105, 116, 99, 111, 105, 110, 32, 115, 101, 101, 100, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 
-    // b"Bitcoin seed"
-    var key_128 = array<u32, SHA512_MAX_INPUT_SIZE>();
-    for (var i = 0u; i < 12u; i++) {
-        key_128[i] = key[i];
-    }
-
-    // first 32 bytes are private key, 2nd 32 bytes are chain code
     var master_extended_key: array<u32, SHA512_HASH_LENGTH>;
-    hmac_sha512(&seed_128, SHA512_HASH_LENGTH, &key_128, &master_extended_key);
+    hmac_sha512(&seed, SHA512_HASH_LENGTH, &key, &master_extended_key);
 
     // derivation path = m/44'/0'/0'/0/0
     outputs[global.x + constants.offset] = Output(word2, master_extended_key);
