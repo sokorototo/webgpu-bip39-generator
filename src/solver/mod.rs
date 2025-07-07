@@ -129,9 +129,6 @@ pub(crate) fn solve(config: &super::Config, device: &wgpu::Device, queue: &wgpu:
 		};
 
 		// 3: queue derivations passes
-		let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-			label: Some("derivations_pass_encoder"),
-		});
 
 		{
 			// call derivations pass in smaller dispatches to avoid GPU timeouts
@@ -149,16 +146,26 @@ pub(crate) fn solve(config: &super::Config, device: &wgpu::Device, queue: &wgpu:
 				log::debug!(target: "solver::derivations_stage", "Remaining = {}, Offset = {}, Dispatch = {}, Threads = {}", matches_count - constants.offset, constants.offset, dispatch, threads);
 
 				// sub-queue
-				let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-					label: Some("derivation_pass"),
-					timestamp_writes: None,
+				let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+					label: Some("derivations_pass_encoder"),
 				});
 
-				pass.set_pipeline(&derivation_pass.pipeline);
-				pass.set_bind_group(0, &derivation_pass.bind_group, &[]);
+				{
+					let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+						label: Some("derivation_pass"),
+						timestamp_writes: None,
+					});
 
-				pass.set_push_constants(0, bytemuck::cast_slice(&[constants]));
-				pass.dispatch_workgroups(dispatch, 1, 1);
+					pass.set_pipeline(&derivation_pass.pipeline);
+					pass.set_bind_group(0, &derivation_pass.bind_group, &[]);
+
+					pass.set_push_constants(0, bytemuck::cast_slice(&[constants]));
+					pass.dispatch_workgroups(dispatch, 1, 1);
+				}
+
+				// submit
+				queue.submit([encoder.finish()]);
+				device.poll(wgpu::PollType::Wait).unwrap();
 
 				// are we done?
 				constants.offset = constants.offset.saturating_add(threads);
@@ -167,10 +174,6 @@ pub(crate) fn solve(config: &super::Config, device: &wgpu::Device, queue: &wgpu:
 				}
 			}
 		}
-
-		// submit
-		queue.submit([encoder.finish()]);
-		device.poll(wgpu::PollType::Wait).unwrap();
 
 		{
 			// 4: send copies of compute work over sender
