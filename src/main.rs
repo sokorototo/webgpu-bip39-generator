@@ -181,6 +181,11 @@ async fn main() {
 			let progress = (max_step / solver::STEP as u64) + 1;
 			log::info!(target: "main::monitoring_thread", "[{:03}/{:03}]: {} Addresses processed in {:?}", progress, steps, total, then.elapsed());
 			then = std::time::Instant::now();
+
+			// break if we are done
+			if progress == steps {
+				break;
+			}
 		}
 	});
 

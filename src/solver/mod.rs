@@ -95,7 +95,8 @@ pub(crate) fn solve(config: &super::Config, device: &wgpu::Device, queue: &wgpu:
 			let dispatch_y = (dispatch / filter::FilterPass::DISPATCH_SIZE_Y).max(1);
 
 			log::debug!(target: "solver::filter_stage", "Threads = {}, DispatchX = {}, DispatchY = {}, WorkgroupSize = {}", threads, dispatch_x, dispatch_y, filter::FilterPass::WORKGROUP_SIZE);
-			pass.dispatch_workgroups(dispatch_x, dispatch_y, 1);
+			// pass.dispatch_workgroups(dispatch_x, dispatch_y, 1);
+			pass.dispatch_workgroups(dispatch_x, 1, 1); // debug
 		}
 
 		// submit
@@ -153,25 +154,23 @@ pub(crate) fn solve(config: &super::Config, device: &wgpu::Device, queue: &wgpu:
 			pass.set_bind_group(0, &derivation_pass.bind_group, &[]);
 
 			// call derivations pass in smaller dispatches to avoid GPU timeouts
-			let mut processed = 0u32;
 			let mut constants = derivation_pass.constants;
-			let threads_per_iteration = config.threads.unwrap_or(64) * derivation::DerivationPass::WORKGROUP_SIZE;
+			constants.count = matches_count;
 
+			let threads_per_iteration = config.threads.unwrap_or(64) * derivation::DerivationPass::WORKGROUP_SIZE;
 			log::debug!(target: "solver::derivations_stage", "Inputs = {}, Dispatches = {}, WorkgroupSize = {}", matches_count, (matches_count + threads_per_iteration - 1) / threads_per_iteration, derivation::DerivationPass::WORKGROUP_SIZE);
 
 			loop {
-				constants.offset = processed;
-
 				// prepare dispatch
-				let threads = (matches_count - processed).min(threads_per_iteration);
+				let threads = (matches_count - constants.offset).min(threads_per_iteration);
 				let dispatch_x = (threads + derivation::DerivationPass::WORKGROUP_SIZE - 1) / derivation::DerivationPass::WORKGROUP_SIZE;
 
 				pass.set_push_constants(0, bytemuck::cast_slice(&[constants]));
 				pass.dispatch_workgroups(dispatch_x, 1, 1);
 
 				// are we done?
-				processed = processed.saturating_add(threads);
-				if processed >= matches_count {
+				constants.offset = constants.offset.saturating_add(threads);
+				if constants.offset >= matches_count {
 					break;
 				}
 			}
