@@ -102,7 +102,7 @@ async fn main() {
 
 		// input and output files
 		let output_path = config.found.as_deref().unwrap_or("found.txt");
-		let Ok(mut output_file) = fs::File::open(output_path) else {
+		let Ok(mut output_file) = fs::OpenOptions::new().write(true).create(true).open(output_path) else {
 			log::error!("Create a `{}` file to output found addresses to", output_path);
 			std::process::exit(1);
 		};
