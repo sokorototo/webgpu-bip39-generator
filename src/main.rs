@@ -88,6 +88,7 @@ async fn main() {
 
 	// start monitoring thread
 	let config_ = config.clone();
+	let mut then = std::time::Instant::now();
 	let (sender, receiver) = flume::unbounded::<solver::StageComputation>();
 
 	let handle = std::thread::spawn(move || {
@@ -112,7 +113,6 @@ async fn main() {
 		let null_hash: [u32; 64] = bytemuck::Zeroable::zeroed();
 
 		// performance tracking
-		let mut then = std::time::Instant::now();
 		let mut found = 0u32;
 
 		// consume messages
