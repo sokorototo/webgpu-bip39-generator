@@ -157,7 +157,7 @@ pub(crate) fn solve(config: &super::Config, device: &wgpu::Device, queue: &wgpu:
 			let mut constants = derivation_pass.constants;
 			constants.count = matches_count;
 
-			let threads_per_iteration = config.threads.unwrap_or(64) * derivation::DerivationPass::WORKGROUP_SIZE;
+			let threads_per_iteration = config.threads.unwrap_or(128) * derivation::DerivationPass::WORKGROUP_SIZE;
 			log::debug!(target: "solver::derivations_stage", "Inputs = {}, Dispatches = {}, WorkgroupSize = {}", matches_count, (matches_count + threads_per_iteration - 1) / threads_per_iteration, derivation::DerivationPass::WORKGROUP_SIZE);
 
 			loop {
