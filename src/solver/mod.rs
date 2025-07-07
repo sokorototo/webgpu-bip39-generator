@@ -21,6 +21,8 @@ pub(crate) struct StageComputation {
 
 #[allow(unused)]
 pub(crate) fn solve(config: &super::Config, device: &wgpu::Device, queue: &wgpu::Queue, sender: flume::Sender<StageComputation>) {
+	let limits = device.limits();
+
 	// initialize passes
 	let mut filter_pass = filter::FilterPass::new(device, config.stencil.iter().map(|s| s.as_str()));
 	let reset_pass = reset::ResetPass::new(device, &filter_pass);
@@ -149,7 +151,7 @@ pub(crate) fn solve(config: &super::Config, device: &wgpu::Device, queue: &wgpu:
 			let mut varying = derivation_pass.constants;
 			varying.count = matches_count;
 
-			let dispatch = config.dispatch.unwrap_or(128);
+			let dispatch = config.dispatch.unwrap_or(limits.max_compute_workgroups_per_dimension);
 			let threads = dispatch * derivation::DerivationPass::WORKGROUP_SIZE;
 			log::debug!(target: "solver::derivations_stage", "InputMatches = {}: Dispatches = {} * WorkgroupSize = {} => Threads = {}", matches_count, dispatch, derivation::DerivationPass::WORKGROUP_SIZE, threads);
 
