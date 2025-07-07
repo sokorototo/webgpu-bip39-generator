@@ -149,6 +149,7 @@ async fn main() {
 					let mut chain_code_bytes = [0; 32];
 					chain_code_bytes.copy_from_slice(&combined[32..]);
 
+					// TODO: use custom code for key derivation
 					let master_extended_private_key = bitcoin::bip32::Xpriv {
 						network: bitcoin::NetworkKind::Main,
 						depth: 0,
