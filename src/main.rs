@@ -32,9 +32,12 @@ pub(crate) struct Config {
 }
 
 pub(crate) fn read_addresses_file(path: &str) -> gxhash::HashSet<solver::types::PublicKeyHash> {
-	let file = std::fs::File::open(path).expect("Create an `addresses.txt`, containing P2PKH addresses to test against");
-	let reader = std::io::BufReader::new(file);
+	let Ok(file) = fs::File::open(path) else {
+		log::error!("Create an `{}`, containing P2PKH addresses to test against", path);
+		std::process::exit(1);
+	};
 
+	let reader = std::io::BufReader::new(file);
 	reader.lines().map(Result::unwrap).map(|l| parse_address(&l).unwrap()).collect()
 }
 
@@ -99,7 +102,10 @@ async fn main() {
 
 		// input and output files
 		let output_path = config.found.as_deref().unwrap_or("found.txt");
-		let mut output_file = fs::File::open(output_path).expect("Create a `found.txt` file, for found addresses");
+		let Ok(mut output_file) = fs::File::open(output_path) else {
+			log::error!("Create a `{}` file to output found addresses to", output_path);
+			std::process::exit(1);
+		};
 
 		let addresses_path = config.addresses.as_deref().unwrap_or("addresses.txt");
 		let addresses = read_addresses_file(addresses_path);
