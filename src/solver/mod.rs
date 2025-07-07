@@ -53,11 +53,9 @@ pub(crate) fn solve(config: &super::Config, device: &wgpu::Device, queue: &wgpu:
 		derivation_pass.constants.word1 = word1;
 
 		// 1: queue reset and filter pass
-		let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("filter_pass") });
+		let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("filter_pass_encoder") });
 
 		{
-			log::debug!("Queueing Reset Pass");
-
 			// queue: reset pass
 			let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
 				label: Some("reset_pass"),
@@ -70,8 +68,6 @@ pub(crate) fn solve(config: &super::Config, device: &wgpu::Device, queue: &wgpu:
 		}
 
 		{
-			log::debug!("Queueing Filter Pass");
-
 			// queue: filter pass
 			let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
 				label: Some("filter_pass"),
@@ -133,41 +129,40 @@ pub(crate) fn solve(config: &super::Config, device: &wgpu::Device, queue: &wgpu:
 		};
 
 		// 3: queue derivations passes
-		let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("derivations_pass") });
+		let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+			label: Some("derivations_pass_encoder"),
+		});
 
 		{
-			// queue: derivation pass
-			log::debug!("Queueing Derivation Pass and Dispatches");
-
-			let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-				label: Some("derivation_pass"),
-				timestamp_writes: None,
-			});
-
-			pass.set_pipeline(&derivation_pass.pipeline);
-			pass.set_bind_group(0, &derivation_pass.bind_group, &[]);
-
 			// call derivations pass in smaller dispatches to avoid GPU timeouts
-			let mut varying = derivation_pass.constants;
-			varying.count = matches_count;
+			let mut constants = derivation_pass.constants;
+			constants.count = matches_count;
 
 			let dispatch = config.dispatch.unwrap_or(limits.max_compute_workgroups_per_dimension);
 			let max_threads = dispatch * derivation::DerivationPass::WORKGROUP_SIZE;
 			log::debug!(target: "solver::derivations_stage", "InputMatches = {}, Config.Dispatch = {}, WorkgroupSize = {}", matches_count, dispatch, derivation::DerivationPass::WORKGROUP_SIZE);
 
 			loop {
-				let threads = (matches_count - varying.offset).min(max_threads);
-				let dispatch = ((threads + derivation::DerivationPass::WORKGROUP_SIZE - 1) / derivation::DerivationPass::WORKGROUP_SIZE);
+				let threads = (matches_count - constants.offset).min(max_threads);
+				let dispatch = (threads + derivation::DerivationPass::WORKGROUP_SIZE - 1) / derivation::DerivationPass::WORKGROUP_SIZE;
 
-				log::debug!(target: "solver::derivations_stage", "Remaining = {}, Offset = {}, Dispatch = {}, Threads = {}", matches_count - varying.offset, varying.offset, dispatch, threads);
+				log::debug!(target: "solver::derivations_stage", "Remaining = {}, Offset = {}, Dispatch = {}, Threads = {}", matches_count - constants.offset, constants.offset, dispatch, threads);
 
 				// sub-queue
-				pass.set_push_constants(0, bytemuck::cast_slice(&[varying]));
+				let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+					label: Some("derivation_pass"),
+					timestamp_writes: None,
+				});
+
+				pass.set_pipeline(&derivation_pass.pipeline);
+				pass.set_bind_group(0, &derivation_pass.bind_group, &[]);
+
+				pass.set_push_constants(0, bytemuck::cast_slice(&[constants]));
 				pass.dispatch_workgroups(dispatch, 1, 1);
 
 				// are we done?
-				varying.offset = varying.offset.saturating_add(threads);
-				if varying.offset >= matches_count {
+				constants.offset = constants.offset.saturating_add(threads);
+				if constants.offset >= matches_count {
 					break;
 				}
 			}
