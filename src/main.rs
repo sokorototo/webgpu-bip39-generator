@@ -113,14 +113,16 @@ async fn main() {
 
 		// performance tracking
 		let mut then = std::time::Instant::now();
+		let mut found = 0u32;
 
 		// consume messages
 		loop {
-			if receiver.len() >= 64 {
+			let count = receiver.len();
+			if count >= 64 {
 				log::error!(target: "main::monitoring_thread", "Severe Bottleneck from monitoring thread: Queue length = {}", receiver.len())
 			}
 
-			if receiver.len() == 0 {
+			if count == 0 {
 				continue;
 			}
 
@@ -159,6 +161,8 @@ async fn main() {
 
 					let bytes: &[u8; 20] = public_key_hash.as_ref();
 					if addresses.contains(bytes) {
+						found += 1;
+
 						// assemble mnemonic sequence
 						let entropy = [constants.word0, constants.word1, output.word2, constants.word3];
 						let entropy_be = entropy.map(|e| e.to_be());
@@ -184,12 +188,13 @@ async fn main() {
 
 			// break if we are done
 			if progress == steps {
-				break;
+				break found;
 			}
 		}
 	});
 
 	// solve
 	solver::solve(&config_, &device, &queue, sender);
-	handle.join().expect("Monitoring thread experienced an error");
+	let found = handle.join().expect("Monitoring thread experienced an error");
+	log::warn!("Completed Scan, Found: {} Matches", found);
 }
