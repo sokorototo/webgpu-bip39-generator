@@ -41,6 +41,7 @@ pub(crate) fn solve(config: &super::Config, device: &wgpu::Device, queue: &wgpu:
 	// MAX(config.range.1) = 2^44. STEP * 2^22
 	for step in (config.range.0..config.range.1).step_by(STEP as _) {
 		// track time per iteration
+		#[cfg(debug_assertions)]
 		match then.as_mut() {
 			Some(p) => {
 				let now = time::Instant::now();
@@ -61,7 +62,7 @@ pub(crate) fn solve(config: &super::Config, device: &wgpu::Device, queue: &wgpu:
 		let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("filter_pass") });
 
 		{
-			log::trace!("Queueing Reset Pass");
+			log::debug!("Queueing Reset Pass");
 
 			// queue: reset pass
 			let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
@@ -75,7 +76,7 @@ pub(crate) fn solve(config: &super::Config, device: &wgpu::Device, queue: &wgpu:
 		}
 
 		{
-			log::trace!("Queueing Filter Pass");
+			log::debug!("Queueing Filter Pass");
 
 			// queue: filter pass
 			let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
