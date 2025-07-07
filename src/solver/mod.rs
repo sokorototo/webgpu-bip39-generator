@@ -153,18 +153,18 @@ pub(crate) fn solve(config: &super::Config, device: &wgpu::Device, queue: &wgpu:
 
 			let dispatch = config.dispatch.unwrap_or(limits.max_compute_workgroups_per_dimension);
 			let threads = dispatch * derivation::DerivationPass::WORKGROUP_SIZE;
-			log::debug!(target: "solver::derivations_stage", "InputMatches = {}: Dispatches = {} * WorkgroupSize = {} => Threads = {}", matches_count, dispatch, derivation::DerivationPass::WORKGROUP_SIZE, threads);
+			log::debug!(target: "solver::derivations_stage", "InputMatches = {}: Dispatches = {} * WorkgroupSize = {}", matches_count, dispatch, derivation::DerivationPass::WORKGROUP_SIZE);
 
 			loop {
-				let processed = (matches_count - varying.offset).min(threads);
-				log::debug!(target: "solver::derivations_stage", "Remaining = {}, Offset = {}", matches_count - varying.offset, varying.offset);
+				let pending = (matches_count - varying.offset).min(threads);
+				log::debug!(target: "solver::derivations_stage", "Remaining = {}, Offset = {}, Pending = {}", matches_count - varying.offset, varying.offset, pending);
 
 				// sub-queue
 				pass.set_push_constants(0, bytemuck::cast_slice(&[varying]));
 				pass.dispatch_workgroups(dispatch, 1, 1);
 
 				// are we done?
-				varying.offset = varying.offset.saturating_add(processed);
+				varying.offset = varying.offset.saturating_add(pending);
 				if varying.offset >= matches_count {
 					break;
 				}

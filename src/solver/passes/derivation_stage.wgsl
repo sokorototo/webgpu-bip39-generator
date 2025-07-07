@@ -139,7 +139,6 @@ fn hardened_derivation(combined: array<u32, SHA512_HASH_LENGTH>, index: u32) {
 @compute @workgroup_size(WORKGROUP_SIZE)
 fn main(@builtin(global_invocation_id) global: vec3<u32>) {
     if (global.x + constants.offset) > constants.count {
-        outputs[global.x + constants.offset].word2 = 69420;
         return;
     }
 
