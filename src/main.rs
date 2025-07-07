@@ -27,8 +27,8 @@ pub(crate) struct Config {
 	found: Option<String>,
 	/// how many threads to process per iteration in the derivation stage.
 	/// multiplied by 256 to arrive at final value. Default is 64
-	#[argh(option, short = 't')]
-	threads: Option<u32>,
+	#[argh(option, short = 'd')]
+	dispatch: Option<u32>,
 }
 
 pub(crate) fn read_addresses_file(path: &str) -> gxhash::HashSet<solver::types::PublicKeyHash> {

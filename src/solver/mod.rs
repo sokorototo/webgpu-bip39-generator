@@ -149,20 +149,20 @@ pub(crate) fn solve(config: &super::Config, device: &wgpu::Device, queue: &wgpu:
 			let mut constants = derivation_pass.constants;
 			constants.count = matches_count;
 
-			let threads_per_iteration = config.threads.unwrap_or(128) * derivation::DerivationPass::WORKGROUP_SIZE;
-			log::debug!(target: "solver::derivations_stage", "Inputs = {}, Dispatches = {}, WorkgroupSize = {}", matches_count, (matches_count + threads_per_iteration - 1) / threads_per_iteration, derivation::DerivationPass::WORKGROUP_SIZE);
+			let dispatch = config.dispatch.unwrap_or(128);
+			let threads = dispatch * derivation::DerivationPass::WORKGROUP_SIZE;
+			log::debug!(target: "solver::derivations_stage", "InputMatches = {}: Dispatches = {} * WorkgroupSize = {} => Threads = {}", matches_count, dispatch, derivation::DerivationPass::WORKGROUP_SIZE, threads);
 
 			loop {
-				// prepare dispatch
-				let threads = (matches_count - constants.offset).min(threads_per_iteration);
-				let dispatch_x = (threads + derivation::DerivationPass::WORKGROUP_SIZE - 1) / derivation::DerivationPass::WORKGROUP_SIZE;
+				let processed = (matches_count - constants.offset).min(threads);
+				log::debug!(target: "solver::derivations_stage", "Remaining = {}, Processed = {}", matches_count - constants.offset, processed);
 
-				log::debug!(target: "solver::derivations_stage", "Remaining = {}, DispatchX = {}", matches_count - constants.offset, dispatch_x);
+				// sub-queue
 				pass.set_push_constants(0, bytemuck::cast_slice(&[constants]));
-				pass.dispatch_workgroups(dispatch_x, 1, 1);
+				pass.dispatch_workgroups(dispatch, 1, 1);
 
 				// are we done?
-				constants.offset = constants.offset.saturating_add(threads);
+				constants.offset = constants.offset.saturating_add(processed);
 				if constants.offset >= matches_count {
 					break;
 				}
