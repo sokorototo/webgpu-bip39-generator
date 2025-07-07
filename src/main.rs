@@ -130,6 +130,8 @@ async fn main() {
 
 			if count == 0 {
 				continue;
+			} else {
+				log::debug!(target: "main::monitoring_thread", "Processing {} master extended keys", count);
 			}
 
 			let mut max_step = 0;
