@@ -138,6 +138,7 @@ fn hardened_derivation(combined: array<u32, SHA512_HASH_LENGTH>, index: u32) {
 
 @compute @workgroup_size(WORKGROUP_SIZE)
 fn main(@builtin(global_invocation_id) global: vec3<u32>) {
+    // TODO: optimize memory access patterns, avoid referencing global atomics per invocation and use memory barriers
     if (global.x + constants.offset) > constants.count {
         return;
     }
