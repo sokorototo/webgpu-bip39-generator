@@ -95,8 +95,7 @@ pub(crate) fn solve(config: &super::Config, device: &wgpu::Device, queue: &wgpu:
 			let dispatch_y = (dispatch / filter::FilterPass::DISPATCH_SIZE_Y).max(1);
 
 			log::debug!(target: "solver::filter_stage", "Threads = {}, DispatchX = {}, DispatchY = {}, WorkgroupSize = {}", threads, dispatch_x, dispatch_y, filter::FilterPass::WORKGROUP_SIZE);
-			// pass.dispatch_workgroups(dispatch_x, dispatch_y, 1);
-			pass.dispatch_workgroups(dispatch_x, 1, 1); // debug
+			pass.dispatch_workgroups(dispatch_x, dispatch_y, 1);
 		}
 
 		// submit
