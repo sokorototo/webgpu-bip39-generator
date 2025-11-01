@@ -3,7 +3,6 @@ const WORKGROUP_SIZE = 256;
 const P2PKH_ADDRESS_SIZE = 20;
 
 const MAX_RESULTS_FOUND = 1398101;
-const ENTROPIES = 4;
 
 // same as filter stage, most fields ignored
 struct PushConstants {
@@ -146,7 +145,7 @@ fn main(@builtin(global_invocation_id) global: vec3<u32>) {
     // generate indices for mnemonics words from entropy
     let word2 = matches[global.x + constants.offset];
 
-    var entropy = array<u32, ENTROPIES>(constants.word0, constants.word1, word2, constants.word3);
+    var entropy = array<u32, 4>(constants.word0, constants.word1, word2, constants.word3);
     var indices = entropy_to_indices(entropy);
 
     // extract word
