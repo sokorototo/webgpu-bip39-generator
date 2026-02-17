@@ -41,6 +41,12 @@ wgpu = { version = "28", default-features = false, features = [
 	"metal",
 ] }
 
+[profile."optimized"]
+inherits = "release"
+lto = true
+strip = true
+codegen-units = 1
+
 [dev-dependencies]
 hex = "0.4.3"
 hmac = "0.12.1"
