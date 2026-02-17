@@ -4,7 +4,7 @@ pub(crate) struct ResetPass {
 	pub pipeline: wgpu::ComputePipeline,
 	pub bind_group: wgpu::BindGroup,
 }
-	
+
 impl ResetPass {
 	pub(crate) const DISPATCH_SIZE_X: u32 = 1;
 	pub(crate) const DISPATCH_SIZE_Y: u32 = 1;
@@ -54,7 +54,7 @@ impl ResetPass {
 		let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
 			label: Some("reset_pipeline_layout"),
 			bind_group_layouts: &[&bind_group_layout],
-			push_constant_ranges: &[],
+			immediate_size: 0,
 		});
 
 		// create compute pipeline

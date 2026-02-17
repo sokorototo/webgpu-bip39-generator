@@ -293,7 +293,7 @@ fn test_short256() {
 	let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
 		label: Some("test-short256::pipeline_layout"),
 		bind_group_layouts: &[&bind_group_layout],
-		push_constant_ranges: &[],
+		immediate_size: 0,
 	});
 
 	// create compute pipeline
@@ -451,7 +451,7 @@ fn test_pbkdf2() {
 	let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
 		label: Some("test-sha512::pipeline-layout"),
 		bind_group_layouts: &[&bind_group_layout],
-		push_constant_ranges: &[],
+		immediate_size: 0,
 	});
 
 	// create compute pipeline

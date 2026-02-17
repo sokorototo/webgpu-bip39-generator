@@ -3,13 +3,13 @@ use wgpu::util::DeviceExt;
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-pub(crate) struct PushConstants {
+pub(crate) struct Immediates {
 	pub(crate) words: [u32; 4],
 	pub(crate) checksum: u32,
 }
 
-impl PushConstants {
-	pub(crate) fn from_stencil<'a, I: Iterator<Item = &'a str>>(words: I) -> PushConstants {
+impl Immediates {
+	pub(crate) fn from_stencil<'a, I: Iterator<Item = &'a str>>(words: I) -> Immediates {
 		// map stencil to mnemonic
 		let replaced = words.map(|s| if s == "_" { "abandon" } else { s }).collect::<Vec<_>>().join(" ");
 		let mnemonic = bip39::Mnemonic::parse_in_normalized_without_checksum_check(bip39::Language::English, &replaced).unwrap();
@@ -21,7 +21,7 @@ impl PushConstants {
 		words.copy_from_slice(bytemuck::cast_slice(&entropy));
 		words = words.map(|w| w.to_be()); // TODO: does this make sense?
 
-		PushConstants {
+		Immediates {
 			words,
 			checksum: mnemonic.checksum() as _,
 		}
@@ -29,11 +29,12 @@ impl PushConstants {
 }
 
 pub(crate) struct FilterPass {
-	pub constants: PushConstants,
+	pub immediates: Immediates,
 	pub pipeline: wgpu::ComputePipeline,
 	pub bind_group: wgpu::BindGroup,
 	pub matches_buffer: wgpu::Buffer,
 	pub count_buffer: wgpu::Buffer,
+	pub count_buffer_dest: wgpu::Buffer,
 }
 
 impl FilterPass {
@@ -43,7 +44,7 @@ impl FilterPass {
 
 	pub(crate) fn new<'a, I: Iterator<Item = &'a str>>(device: &wgpu::Device, stencil: I) -> FilterPass {
 		assert!(
-			std::mem::size_of::<PushConstants>() as u32 <= device.limits().max_push_constant_size,
+			std::mem::size_of::<Immediates>() as u32 <= device.limits().max_immediate_size,
 			"filter::PushConstants too large for device, unable to init pipeline"
 		);
 
@@ -51,7 +52,13 @@ impl FilterPass {
 		let count_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
 			label: Some("solver_count"),
 			contents: bytemuck::cast_slice(&[0]),
-			usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::MAP_READ,
+			usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
+		});
+
+		let count_buffer_dest = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+			label: Some("solver_count_dest"),
+			contents: bytemuck::cast_slice(&[0]),
+			usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
 		});
 
 		let matches_buffer = device.create_buffer(&wgpu::BufferDescriptor {
@@ -120,10 +127,7 @@ impl FilterPass {
 		let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
 			label: Some("filter_pipeline_layout"),
 			bind_group_layouts: &[&bind_group_layout],
-			push_constant_ranges: &[wgpu::PushConstantRange {
-				stages: wgpu::ShaderStages::COMPUTE,
-				range: 0..std::mem::size_of::<PushConstants>() as u32,
-			}],
+			immediate_size: std::mem::size_of::<Immediates>() as u32,
 		});
 
 		// create compute pipeline
@@ -142,7 +146,8 @@ impl FilterPass {
 			bind_group,
 			matches_buffer,
 			count_buffer,
-			constants: PushConstants::from_stencil(stencil),
+			count_buffer_dest,
+			immediates: Immediates::from_stencil(stencil),
 		}
 	}
 }

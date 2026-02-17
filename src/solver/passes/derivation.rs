@@ -3,7 +3,7 @@ use wgpu::util::DeviceExt;
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-pub(crate) struct PushConstants {
+pub(crate) struct Immediates {
 	pub(crate) word0: u32,
 	pub(crate) word1: u32,
 	pub(crate) word3: u32,
@@ -13,10 +13,11 @@ pub(crate) struct PushConstants {
 }
 
 pub(crate) struct DerivationPass {
-	pub constants: PushConstants,
+	pub constants: Immediates,
 	pub pipeline: wgpu::ComputePipeline,
 	pub bind_group: wgpu::BindGroup,
 	pub output_buffer: wgpu::Buffer,
+	pub output_buffer_dest: wgpu::Buffer,
 }
 
 impl DerivationPass {
@@ -24,7 +25,7 @@ impl DerivationPass {
 
 	pub(crate) fn new(device: &wgpu::Device, filter_pass: &filter::FilterPass) -> DerivationPass {
 		assert!(
-			std::mem::size_of::<PushConstants>() as u32 <= device.limits().max_push_constant_size,
+			std::mem::size_of::<Immediates>() as u32 <= device.limits().max_immediate_size,
 			"filter::PushConstants too large for device, unable to init pipeline"
 		);
 
@@ -59,7 +60,14 @@ impl DerivationPass {
 		let output_buffer = device.create_buffer(&wgpu::BufferDescriptor {
 			label: Some("derivation_outputs"),
 			size: (std::mem::size_of::<[types::DerivationsOutput; MAX_RESULTS_FOUND]>() as usize) as wgpu::BufferAddress,
-			usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::MAP_READ,
+			usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
+			mapped_at_creation: false,
+		});
+
+		let output_buffer_dest = device.create_buffer(&wgpu::BufferDescriptor {
+			label: Some("derivation_outputs"),
+			size: (std::mem::size_of::<[types::DerivationsOutput; MAX_RESULTS_FOUND]>() as usize) as wgpu::BufferAddress,
+			usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
 			mapped_at_creation: false,
 		});
 
@@ -133,10 +141,7 @@ impl DerivationPass {
 		let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
 			label: Some("derivation_pipeline_layout"),
 			bind_group_layouts: &[&bind_group_layout],
-			push_constant_ranges: &[wgpu::PushConstantRange {
-				stages: wgpu::ShaderStages::COMPUTE,
-				range: 0..std::mem::size_of::<PushConstants>() as u32,
-			}],
+			immediate_size: std::mem::size_of::<Immediates>() as u32,
 		});
 
 		// create compute pipeline
@@ -154,13 +159,14 @@ impl DerivationPass {
 			pipeline,
 			bind_group,
 			output_buffer,
-			constants: PushConstants {
-				checksum: filter_pass.constants.checksum,
+			output_buffer_dest,
+			constants: Immediates {
+				checksum: filter_pass.immediates.checksum,
 				offset: 0,
 				count: 0,
-				word0: filter_pass.constants.words[0],
+				word0: filter_pass.immediates.words[0],
 				word1: 0,
-				word3: filter_pass.constants.words[3],
+				word3: filter_pass.immediates.words[3],
 			},
 		}
 	}

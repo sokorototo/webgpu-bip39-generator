@@ -15,11 +15,10 @@ pub(crate) const MAX_RESULTS_FOUND: usize = (STEP as usize) / 12;
 // represents data extracted from the solver
 pub(crate) struct StageComputation {
 	pub(crate) step: u64,
-	pub(crate) constants: passes::derivation::PushConstants,
+	pub(crate) constants: passes::derivation::Immediates,
 	pub(crate) outputs: Box<[types::DerivationsOutput]>,
 }
 
-#[allow(unused)]
 pub(crate) fn solve(config: &super::Config, device: &wgpu::Device, queue: &wgpu::Queue, sender: flume::Sender<StageComputation>) {
 	// initialize passes
 	let mut filter_pass = filter::FilterPass::new(device, config.stencil.iter().map(|s| s.as_str()));
@@ -27,6 +26,7 @@ pub(crate) fn solve(config: &super::Config, device: &wgpu::Device, queue: &wgpu:
 	let mut derivation_pass = derivation::DerivationPass::new(device, &filter_pass);
 
 	// track time taken per iteration
+	#[cfg(debug_assertions)]
 	let mut then: Option<time::Instant> = None;
 
 	// each pass steps by STEP = 2^24
@@ -45,9 +45,9 @@ pub(crate) fn solve(config: &super::Config, device: &wgpu::Device, queue: &wgpu:
 
 		// 0: update push constants
 		let entropy = (step / STEP as u64) as u32;
-		let word1 = (filter_pass.constants.words[1] & 0xfff00000) | entropy;
+		let word1 = (filter_pass.immediates.words[1] & 0xfff00000) | entropy;
 
-		filter_pass.constants.words[1] = word1;
+		filter_pass.immediates.words[1] = word1;
 		derivation_pass.constants.word1 = word1;
 
 		// 1: queue reset and filter pass
@@ -73,12 +73,12 @@ pub(crate) fn solve(config: &super::Config, device: &wgpu::Device, queue: &wgpu:
 			});
 
 			pass.set_pipeline(&filter_pass.pipeline);
-			pass.set_push_constants(0, bytemuck::cast_slice(&[filter_pass.constants]));
+			pass.set_immediates(0, bytemuck::cast_slice(&[filter_pass.immediates]));
 			pass.set_bind_group(0, &filter_pass.bind_group, &[]);
 
 			// calculate dimensions of dispatch
 			let threads = (config.range.1 - step).min(STEP as _);
-			let dispatch = ((threads as u32 + filter::FilterPass::WORKGROUP_SIZE - 1) / filter::FilterPass::WORKGROUP_SIZE);
+			let dispatch = (threads as u32 + filter::FilterPass::WORKGROUP_SIZE - 1) / filter::FilterPass::WORKGROUP_SIZE;
 
 			let dispatch_x = filter::FilterPass::DISPATCH_SIZE_X.min(dispatch);
 			let dispatch_y = (dispatch / filter::FilterPass::DISPATCH_SIZE_Y).max(1);
@@ -87,17 +87,22 @@ pub(crate) fn solve(config: &super::Config, device: &wgpu::Device, queue: &wgpu:
 			pass.dispatch_workgroups(dispatch_x, dispatch_y, 1);
 		}
 
+		{
+			// queue: copy GPU output buffers to CPU mapped buffers
+			encoder.copy_buffer_to_buffer(&filter_pass.count_buffer, 0, &filter_pass.count_buffer_dest, 0, filter_pass.count_buffer.size());
+		}
+
 		// submit
 		queue.submit([encoder.finish()]);
-		device.poll(wgpu::PollType::Wait).unwrap();
+		device.poll(wgpu::PollType::Wait { submission_index: None, timeout: None }).unwrap();
 
 		// 2: read X matches produced by filter stage
-		let mut matches_count = {
+		let matches_count = {
 			let (count_send, count_recv) = flume::bounded(1);
-			let _count_buffer = filter_pass.count_buffer.clone();
+			let _count_buffer = filter_pass.count_buffer_dest.clone();
 
 			// read count buffer
-			filter_pass.count_buffer.map_async(wgpu::MapMode::Read, .., move |res| match res {
+			filter_pass.count_buffer_dest.map_async(wgpu::MapMode::Read, .., move |res| match res {
 				Ok(_) => {
 					let range = _count_buffer.get_mapped_range(..);
 					let bytes: &[u32] = bytemuck::cast_slice(range.as_ref());
@@ -113,7 +118,7 @@ pub(crate) fn solve(config: &super::Config, device: &wgpu::Device, queue: &wgpu:
 			});
 
 			// poll map_async callback
-			device.poll(wgpu::PollType::Wait).unwrap();
+			device.poll(wgpu::PollType::Wait { submission_index: None, timeout: None }).unwrap();
 			let count = count_recv.recv_timeout(time::Duration::from_secs(5)).expect("Unable to acquire matches_count from buffer");
 
 			log::debug!(target: "solver::filter_stage", "Valid Mnemonic Phrases Found: {}", count);
@@ -157,13 +162,22 @@ pub(crate) fn solve(config: &super::Config, device: &wgpu::Device, queue: &wgpu:
 					pass.set_pipeline(&derivation_pass.pipeline);
 					pass.set_bind_group(0, &derivation_pass.bind_group, &[]);
 
-					pass.set_push_constants(0, bytemuck::cast_slice(&[constants]));
+					pass.set_immediates(0, bytemuck::cast_slice(&[constants]));
 					pass.dispatch_workgroups(dispatch, 1, 1);
 				}
 
+				// copy data from output_buffer to output_buffer_dest
+				encoder.copy_buffer_to_buffer(
+					&derivation_pass.output_buffer,
+					0,
+					&derivation_pass.output_buffer_dest,
+					0,
+					(matches_count as usize * std::mem::size_of::<types::DerivationsOutput>()) as wgpu::BufferAddress,
+				);
+
 				// submit
 				queue.submit([encoder.finish()]);
-				device.poll(wgpu::PollType::Wait).unwrap();
+				device.poll(wgpu::PollType::Wait { submission_index: None, timeout: None }).unwrap();
 
 				// are we done?
 				constants.offset = constants.offset.saturating_add(threads);
@@ -172,13 +186,13 @@ pub(crate) fn solve(config: &super::Config, device: &wgpu::Device, queue: &wgpu:
 
 		{
 			// 4: send copies of compute work over sender
-			let hashes_src_ = derivation_pass.output_buffer.clone();
+			let hashes_src_ = derivation_pass.output_buffer_dest.clone();
 			let sender_ = sender.clone();
 
-			derivation_pass.output_buffer.map_async(wgpu::MapMode::Read, .., move |res| {
+			derivation_pass.output_buffer_dest.map_async(wgpu::MapMode::Read, .., move |res| {
 				res.unwrap();
 
-				let mut range = hashes_src_.get_mapped_range(..);
+				let range = hashes_src_.get_mapped_range(..);
 				let results: &[types::DerivationsOutput] = bytemuck::cast_slice(range.as_ref());
 
 				let output = StageComputation {
@@ -195,7 +209,7 @@ pub(crate) fn solve(config: &super::Config, device: &wgpu::Device, queue: &wgpu:
 			});
 
 			// poll map_async callback
-			device.poll(wgpu::PollType::Wait).unwrap();
+			device.poll(wgpu::PollType::Wait { submission_index: None, timeout: None }).unwrap();
 		}
 	}
 }

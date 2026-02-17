@@ -5,7 +5,7 @@ const P2PKH_ADDRESS_SIZE = 20;
 const MAX_RESULTS_FOUND = 1398101;
 
 // same as filter stage, most fields ignored
-struct PushConstants {
+struct Immediates {
     word0: u32,
     word1: u32,
     word3: u32,
@@ -14,7 +14,7 @@ struct PushConstants {
     count: u32
 };
 
-var<push_constant> constants: PushConstants;
+var<immediate> constants: Immediates;
 
 @group(0) @binding(1)
 var<storage, read> matches: array<u32, MAX_RESULTS_FOUND>;
@@ -36,7 +36,7 @@ fn swap_bytes(value: u32) -> u32 {
     return (byte0 * 0x1000000) | (byte1 * 0x10000) | (byte2 * 0x100) | byte3;
 }
 
-fn entropy_to_indices(entropy: array<u32, ENTROPIES>) -> array<u32, 12> {
+fn entropy_to_indices(entropy: array<u32, 4>) -> array<u32, 12> {
     var out = array<u32, 12>();
 
     // 1st chunk - extracting 11-bit values from entropy[0]

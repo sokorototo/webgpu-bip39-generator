@@ -1,7 +1,7 @@
 #![allow(unused)]
 use std::fmt::Debug;
 
-pub(crate) fn inspect_buffer<T: bytemuck::Pod + Debug, F: Fn(&[T]) + Send + Sync + 'static>(device: &wgpu::Device, buffer: &wgpu::Buffer, callback: F) {
+pub(crate) fn inspect_buffer<T: bytemuck::Pod, F: Fn(&[T]) + Send + Sync + 'static>(device: &wgpu::Device, buffer: &wgpu::Buffer, callback: F) {
 	let buffer_ = buffer.clone();
 	buffer.map_async(wgpu::MapMode::Read, .., move |res| {
 		res.unwrap();
@@ -16,5 +16,5 @@ pub(crate) fn inspect_buffer<T: bytemuck::Pod + Debug, F: Fn(&[T]) + Send + Sync
 		buffer_.unmap();
 	});
 
-	device.poll(wgpu::PollType::Wait).unwrap();
+	device.poll(wgpu::PollType::Wait { submission_index: None, timeout: None }).unwrap();
 }

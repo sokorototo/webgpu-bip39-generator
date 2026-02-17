@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 argh = "0.1"
-flume = { version = "0.11.1", default-features = false, features = ["spin"] }
+flume = { version = "0.12", default-features = false, features = ["spin"] }
 pollster = { version = "0.4", features = ["macro"], default-features = false }
 bytemuck = "1"
 gxhash = "3.5.0"
@@ -22,21 +22,21 @@ simple_logger = { version = "5.0.0", default-features = false, features = [
 ] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
-wgpu = { version = "25", default-features = false, features = [
+wgpu = { version = "28", default-features = false, features = [
 	"wgsl",
 	"vulkan",
 	"strict_asserts",
 ] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
-wgpu = { version = "25", default-features = false, features = [
+wgpu = { version = "28", default-features = false, features = [
 	"wgsl",
 	"vulkan",
 	"strict_asserts",
 ] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
-wgpu = { version = "25", default-features = false, features = [
+wgpu = { version = "28", default-features = false, features = [
 	"wgsl",
 	"metal",
 ] }

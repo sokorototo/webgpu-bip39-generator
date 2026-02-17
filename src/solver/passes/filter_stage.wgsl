@@ -5,7 +5,7 @@ const DISPATCH_SIZE_Y = 256; // 2 ^ 8
 
 const MAX_RESULTS_FOUND = 1398101;
 
-struct PushConstants {
+struct Immediates {
     word0: u32,
     word1: u32,
     word2_partial: u32,
@@ -13,7 +13,7 @@ struct PushConstants {
     checksum: u32,
 };
 
-var<push_constant> constants: PushConstants;
+var<immediate> constants: Immediates;
 
 @group(0) @binding(1)
 var<storage, read_write> count: atomic<u32>;
