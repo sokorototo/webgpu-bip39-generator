@@ -113,7 +113,7 @@ async fn main() {
 		// bitcoin state
 		let secp256k1 = bitcoin::key::Secp256k1::new();
 		let derivation_path: bitcoin::bip32::DerivationPath = std::str::FromStr::from_str("m/44'/0'/0'/0/0").unwrap();
-		let null_hash: [u32; 64] = bytemuck::Zeroable::zeroed();
+		let _null_hash: [u32; 64] = bytemuck::Zeroable::zeroed();
 
 		// performance tracking
 		let mut found = 0u32;
@@ -139,9 +139,10 @@ async fn main() {
 				total += outputs.len();
 
 				// process master extended keys
-				for (idx, output) in IntoIterator::into_iter(outputs).enumerate() {
-					if output.hash == null_hash {
-						log::error!("Step = {}, Thread = {}, Word2 = {}, returned a null result", step, idx, output.word2);
+				for (_idx, output) in IntoIterator::into_iter(outputs).enumerate() {
+					#[cfg(debug_assertions)]
+					if output.hash == _null_hash {
+						log::error!("Step = {}, Thread = {}, Word2 = {}, returned a null result", step, _idx, output.word2);
 						continue;
 					}
 
