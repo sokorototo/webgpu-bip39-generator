@@ -121,7 +121,7 @@ pub(crate) fn solve(config: &super::Config, device: &wgpu::Device, queue: &wgpu:
 			device.poll(wgpu::PollType::Wait { submission_index: None, timeout: None }).unwrap();
 			let count = count_recv.recv_timeout(time::Duration::from_secs(5)).expect("Unable to acquire matches_count from buffer");
 
-			log::debug!(target: "solver::filter_stage", "Valid Mnemonic Phrases Found: {}", count);
+			log::info!(target: "solver::filter_stage", "Valid Mnemonic Phrases Found: {}", count);
 
 			// output buffer was full
 			if count >= MAX_RESULTS_FOUND as _ {
