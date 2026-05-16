@@ -78,7 +78,7 @@ pub(crate) fn solve(config: &super::Config, device: &wgpu::Device, queue: &wgpu:
 
 			// calculate dimensions of dispatch
 			let threads = (config.range.1 - step).min(STEP as _);
-			let dispatch = (threads as u32 + filter::FilterPass::WORKGROUP_SIZE - 1) / filter::FilterPass::WORKGROUP_SIZE;
+			let dispatch = (threads as u32).div_ceil(filter::FilterPass::WORKGROUP_SIZE);
 
 			let dispatch_x = filter::FilterPass::DISPATCH_SIZE_X.min(dispatch);
 			let dispatch_y = (dispatch / filter::FilterPass::DISPATCH_SIZE_Y).max(1);
@@ -144,7 +144,7 @@ pub(crate) fn solve(config: &super::Config, device: &wgpu::Device, queue: &wgpu:
 
 			while constants.offset < matches_count {
 				let threads = (matches_count - constants.offset).min(max_threads);
-				let dispatch = (threads + derivation::DerivationPass::WORKGROUP_SIZE - 1) / derivation::DerivationPass::WORKGROUP_SIZE;
+				let dispatch = threads.div_ceil(derivation::DerivationPass::WORKGROUP_SIZE);
 
 				log::debug!(target: "solver::derivations_stage", "Remaining = {}, Offset = {}, Dispatch = {}, Threads = {}", matches_count - constants.offset, constants.offset, dispatch, threads);
 

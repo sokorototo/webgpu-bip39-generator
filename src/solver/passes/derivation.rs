@@ -34,12 +34,12 @@ impl DerivationPass {
 			// allocate word list buffer
 			let words = bip39::Language::English
 				.word_list()
-				.into_iter()
+				.iter()
 				.map(|word| {
 					let bytes = word.as_bytes();
 
 					let mut buffer = [0u8; 8];
-					(&mut buffer[..bytes.len()]).copy_from_slice(bytes);
+					buffer[..bytes.len()].copy_from_slice(bytes);
 
 					types::Bip39Word {
 						bytes: buffer.map(|s| s as u32),
@@ -140,7 +140,7 @@ impl DerivationPass {
 		// configure pipeline layout
 		let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
 			label: Some("derivation_pipeline_layout"),
-			bind_group_layouts: &[&bind_group_layout],
+			bind_group_layouts: &[Some(&bind_group_layout)],
 			immediate_size: std::mem::size_of::<Immediates>() as u32,
 		});
 

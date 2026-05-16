@@ -5,7 +5,7 @@ use std::{
 
 pub(crate) mod device;
 pub(crate) mod solver;
-pub(self) mod utils;
+pub mod utils;
 
 #[cfg(test)]
 pub(crate) mod tests;
@@ -102,7 +102,7 @@ async fn main() {
 
 		// input and output files
 		let output_path = config.found.as_deref().unwrap_or("found.txt");
-		let Ok(mut output_file) = fs::OpenOptions::new().write(true).create(true).open(output_path) else {
+		let Ok(mut output_file) = fs::OpenOptions::new().write(true).create(true).truncate(true).open(output_path) else {
 			log::error!("Create a `{}` file to output found addresses to", output_path);
 			std::process::exit(1);
 		};
@@ -184,7 +184,7 @@ async fn main() {
 						let sequence = mnemonic.words().skip(1).fold(first.to_string(), |acc, nxt| acc + " " + nxt);
 
 						// write to output file
-						let p2pkh = bitcoin::Address::p2pkh(&public_key, bitcoin::Network::Bitcoin);
+						let p2pkh = bitcoin::Address::p2pkh(public_key, bitcoin::Network::Bitcoin);
 						let line = format!("Mnemonic = \"{}\", MasterExtendedKey = \"{}\",  P2PKH = \"{}\"\n", sequence, master_extended_private_key, p2pkh);
 
 						log::warn!("Found Match: {}", &line[..line.len() - 2]);
